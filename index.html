@@ -1,0 +1,2501 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrimeNester Studio - UV平板印刷與智能拼版預覽系統</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter", sans-serif; 
+      -webkit-font-smoothing: antialiased;
+    }
+    .mono { font-family: 'SF Mono', 'JetBrains Mono', monospace; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.25); border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.45); }
+    .ios-blur {
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+  </style>
+  <!-- PDF.js for rendering Adobe AI (.ai) and PDF files -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <!-- jsPDF for direct in-browser 1:1 Print-Ready PDF export -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col h-screen overflow-hidden select-none antialiased">
+
+  <!-- iOS-Style Top Navigation Bar -->
+  <header class="bg-slate-900/90 ios-blur border-b border-slate-800/80 px-4 py-2.5 flex items-center justify-between shrink-0 z-20 shadow-sm">
+    
+    <!-- Left: App Identity -->
+    <div class="flex items-center space-x-3">
+      <div class="w-9 h-9 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/25 text-white font-bold text-lg">
+        ⚡
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <h1 class="font-bold text-sm tracking-tight text-white">PrimeNester Studio</h1>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/30">Caldera-Grade 80%</span>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">MC Motoparts</span>
+        </div>
+        <p class="text-[11px] text-slate-400">UV 平板混拼・塗層解析（白墨/光油/刀線）・圖片上傳與自動排版</p>
+      </div>
+    </div>
+
+    <!-- Center: iOS-Style Segmented Stats Badge -->
+    <div class="hidden lg:flex items-center bg-slate-950/70 border border-slate-800 rounded-2xl px-4 py-1.5 space-x-6 text-xs">
+      <div class="flex items-center space-x-2">
+        <span class="text-slate-500 text-[11px]">總板數:</span>
+        <span id="navBoardStat" class="font-bold text-slate-100 mono">第 1 / 1 塊</span>
+      </div>
+      <div class="h-3 w-px bg-slate-800"></div>
+      <div class="flex items-center space-x-2">
+        <span class="text-slate-500 text-[11px]">利用率:</span>
+        <span id="navYieldStat" class="font-bold text-emerald-400 mono">0.0%</span>
+      </div>
+      <div class="h-3 w-px bg-slate-800"></div>
+      <div class="flex items-center space-x-2">
+        <span class="text-slate-500 text-[11px]">總件數:</span>
+        <span id="navItemCountStat" class="font-bold text-blue-400 mono">0 件</span>
+      </div>
+    </div>
+
+    <!-- Center & Right: Prominent Primary Action Buttons & Sidebar Toggles -->
+    <div class="flex items-center space-x-2 shrink-0">
+      <!-- Sidebar Visibility Toggles (iOS Segmented Pills) -->
+      <div class="bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center space-x-1 shrink-0">
+        <button id="btnToggleLeftSidebar" class="px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white bg-slate-850 hover:bg-slate-800 transition flex items-center space-x-1" title="顯示／收起左側平板規格面板">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"/></svg>
+          <span class="hidden sm:inline">規格設定</span>
+        </button>
+        <button id="btnToggleRightSidebar" class="px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-300 hover:text-white bg-slate-850 hover:bg-slate-800 transition flex items-center space-x-1" title="顯示／收起右側圖稿清單">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          <span class="hidden sm:inline">圖稿清單</span>
+        </button>
+      </div>
+
+      <!-- BIG PROMINENT ADD/UPLOAD BUTTON -->
+      <button id="btnTopOpenAddModal" class="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center space-x-1.5 shadow-lg shadow-blue-600/30 transition transform active:scale-95 shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+        <span class="whitespace-nowrap">加入圖稿 / 上傳圖片</span>
+      </button>
+
+      <!-- DIRECT ONE-CLICK PDF EXPORT (NO ILLUSTRATOR NEEDED) -->
+      <button id="btnDirectExportPDF" class="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center space-x-1.5 shadow-lg shadow-emerald-600/30 transition transform active:scale-95 shrink-0" title="100% 網頁直出！直接生成 1:1 生產用 PDF，無需打開 Illustrator">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+        <span class="whitespace-nowrap">🖨️ 直接導出生產 PDF (免開 AI)</span>
+      </button>
+
+      <button id="btnRecalculate" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 active:bg-slate-850 text-slate-200 rounded-xl text-xs font-medium flex items-center space-x-1.5 border border-slate-700 transition shrink-0">
+        <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        <span class="whitespace-nowrap">重新自動拼版</span>
+      </button>
+
+      <button id="btnExportJSX" class="px-3 py-2 bg-gradient-to-r from-amber-600 to-orange-500 hover:from-amber-500 hover:to-orange-400 active:brightness-90 text-white rounded-xl text-xs font-semibold flex items-center space-x-1.5 shadow-md shadow-orange-500/20 transition shrink-0" title="生成 Adobe Illustrator 專用 ExtendScript (.jsx)">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <span class="whitespace-nowrap">匯出 AI 腳本 (.jsx)</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Work Area (3 Columns: iOS Clean Cards) -->
+  <div class="flex-1 flex overflow-hidden">
+    
+    <!-- Left Sidebar: Bed & Imposition Settings (iOS Form Style) -->
+    <aside id="leftSidebarPanel" class="w-76 max-w-[280px] bg-slate-900/90 ios-blur border-r border-slate-800/80 flex flex-col shrink-0 text-xs overflow-y-auto p-3.5 space-y-3.5 transition-all duration-200 z-10">
+      
+      <!-- iOS Section 1: Bed Sizes -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3.5 shadow-sm space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="font-bold text-slate-200 text-xs tracking-tight flex items-center space-x-1.5">
+            <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+            <span>平板尺寸與規格</span>
+          </span>
+          <span class="text-[10px] text-slate-500 uppercase font-semibold">Bed Size</span>
+        </div>
+
+        <!-- Presets Buttons (iOS pill grid) -->
+        <div class="grid grid-cols-2 gap-1.5">
+          <button id="preset700x1200" class="p-2 rounded-xl bg-slate-950/70 hover:bg-slate-800/80 border border-slate-800 text-left transition active:scale-95">
+            <span class="block font-bold text-blue-400 text-[11px]">700 × 1200 mm</span>
+            <span class="text-[9px] text-slate-400">常用 700 闊度平板</span>
+          </button>
+          <button id="preset1200x1200" class="p-2 rounded-xl bg-slate-950/70 hover:bg-slate-800/80 border border-slate-800 text-left transition active:scale-95">
+            <span class="block font-bold text-blue-400 text-[11px]">1200 × 1200 mm</span>
+            <span class="text-[9px] text-slate-400">1.2米 方形大平板</span>
+          </button>
+          <button id="preset1200x2400" class="p-2 rounded-xl bg-slate-950/70 hover:bg-slate-800/80 border border-slate-800 text-left transition active:scale-95">
+            <span class="block font-bold text-slate-300 text-[11px]">1200 × 2400 mm</span>
+            <span class="text-[9px] text-slate-400">1.2米 全開標準床面</span>
+          </button>
+          <button id="preset700x1000" class="p-2 rounded-xl bg-slate-950/70 hover:bg-slate-800/80 border border-slate-800 text-left transition active:scale-95">
+            <span class="block font-bold text-slate-300 text-[11px]">700 × 1000 mm</span>
+            <span class="text-[9px] text-slate-400">700 緊湊打樣規格</span>
+          </button>
+        </div>
+
+        <!-- Custom Inputs -->
+        <div class="grid grid-cols-2 gap-2 pt-1">
+          <div class="bg-slate-950/80 p-2 rounded-xl border border-slate-800/80">
+            <label class="block text-slate-500 text-[10px] mb-0.5">板材闊度 W (mm)</label>
+            <input id="bedWidth" type="number" value="700" step="10" min="100" max="3000" class="w-full bg-transparent text-slate-100 mono font-bold text-sm focus:outline-none">
+          </div>
+          <div class="bg-slate-950/80 p-2 rounded-xl border border-slate-800/80">
+            <label class="block text-slate-500 text-[10px] mb-0.5">板材長度 L (mm)</label>
+            <input id="bedHeight" type="number" value="1200" step="10" min="100" max="5000" class="w-full bg-transparent text-slate-100 mono font-bold text-sm focus:outline-none">
+          </div>
+        </div>
+      </div>
+
+      <!-- iOS Section 2: Precise Spacing & Distances -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3.5 shadow-sm space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="font-bold text-slate-200 text-xs tracking-tight flex items-center space-x-1.5">
+            <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+            <span>精確間距設定 (mm)</span>
+          </span>
+          <span class="text-[10px] text-slate-500 uppercase font-semibold">Spacing</span>
+        </div>
+
+        <div class="space-y-2">
+          <!-- Item Gap -->
+          <div class="flex items-center justify-between bg-slate-950/60 p-2 rounded-xl border border-slate-800/70">
+            <div>
+              <span class="text-slate-300 text-xs font-medium block">圖稿間隙 (Item Gap)</span>
+              <span class="text-[9px] text-slate-500">刀線安全間距 <span id="lblItemSpacing" class="hidden">4</span></span>
+            </div>
+            <div class="flex items-center space-x-1">
+              <input id="itemSpacing" type="number" value="4" step="1" min="1" max="50" class="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-center text-slate-100 mono font-bold text-xs focus:outline-none focus:border-blue-500">
+              <span class="text-slate-400 text-xs">mm</span>
+            </div>
+          </div>
+
+          <!-- Bed Margin -->
+          <div class="flex items-center justify-between bg-slate-950/60 p-2 rounded-xl border border-slate-800/70">
+            <div>
+              <span class="text-slate-300 text-xs font-medium block">四周留邊 (Margin)</span>
+              <span class="text-[9px] text-slate-500">避開邊緣夾具 <span id="lblBedMargin" class="hidden">15</span></span>
+            </div>
+            <div class="flex items-center space-x-1">
+              <input id="bedMargin" type="number" value="15" step="1" min="0" max="100" class="w-16 bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-center text-slate-100 mono font-bold text-xs focus:outline-none focus:border-blue-500">
+              <span class="text-slate-400 text-xs">mm</span>
+            </div>
+          </div>
+
+          <!-- Artboard Gap -->
+          <div class="flex items-center justify-between bg-slate-950/60 p-2 rounded-xl border border-slate-800/70">
+            <div>
+              <span class="text-blue-300 text-xs font-medium block">畫板間距 (Artboard Gap)</span>
+              <span class="text-[9px] text-slate-500">AI 多板並排距離 <span id="lblArtboardSpacing" class="hidden">80</span></span>
+            </div>
+            <div class="flex items-center space-x-1">
+              <input id="artboardSpacing" type="number" value="80" step="10" min="20" max="500" class="w-16 bg-slate-900 border border-blue-600 rounded-lg px-2 py-1 text-center text-blue-300 mono font-bold text-xs focus:outline-none">
+              <span class="text-slate-400 text-xs">mm</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- iOS Section 3: Optimization Switches -->
+      <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-3.5 shadow-sm space-y-2.5">
+        <span class="font-bold text-slate-200 text-xs tracking-tight flex items-center space-x-1.5">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <span>排版引擎規則</span>
+        </span>
+
+        <div class="space-y-2 pt-1 text-[11px]">
+          <label class="flex items-center justify-between cursor-pointer py-1 border-b border-slate-800/60">
+            <span class="text-slate-300">全局 90° 自動旋轉優化</span>
+            <input id="optAllowRotate" type="checkbox" checked class="w-4 h-4 rounded-md text-blue-600 bg-slate-950 border-slate-700 focus:ring-0">
+          </label>
+          <label class="flex items-center justify-between cursor-pointer py-1 border-b border-slate-800/60">
+            <span class="text-slate-300">空隙插拼 (大件先排，小件填補)</span>
+            <input id="optAutoFillGaps" type="checkbox" checked class="w-4 h-4 rounded-md text-blue-600 bg-slate-950 border-slate-700 focus:ring-0">
+          </label>
+          <label class="flex items-center justify-between cursor-pointer py-1 border-b border-slate-800/60">
+            <span class="text-slate-300">板邊自動生成打印對位光標</span>
+            <input id="optAddRegistrationMarks" type="checkbox" checked class="w-4 h-4 rounded-md text-blue-600 bg-slate-950 border-slate-700 focus:ring-0">
+          </label>
+          <label class="flex items-center justify-between cursor-pointer py-1">
+            <span class="text-slate-300">加入板號資訊標籤</span>
+            <input id="optAddJobTag" type="checkbox" checked class="w-4 h-4 rounded-md text-blue-600 bg-slate-950 border-slate-700 focus:ring-0">
+          </label>
+        </div>
+
+        <!-- MC Motoparts 廠內切線雙重識別規範提示 -->
+        <div class="bg-fuchsia-950/20 border border-fuchsia-500/30 rounded-xl p-2.5 space-y-1 text-[11px] mt-2">
+          <div class="flex items-center justify-between text-fuchsia-300 font-bold">
+            <span class="flex items-center space-x-1">
+              <span>✂️ MC 廠內切線定義</span>
+            </span>
+            <span class="text-[9px] bg-fuchsia-500/20 text-fuchsia-300 px-1 rounded">2 種方法</span>
+          </div>
+          <div class="text-[10px] text-slate-400 space-y-0.5 leading-snug">
+            <div>1. 圖層名稱：<span class="text-slate-200 font-mono">DIECUT</span> 或 <span class="text-slate-200 font-mono">OUTCUT</span></div>
+            <div>2. 專色識別：非 White 專色，線寬 <span class="text-slate-200 font-mono">≤ 1px (1pt)</span></div>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- Center: Interactive Preview Canvas (iOS Clean Window) -->
+    <main class="flex-1 bg-slate-950 flex flex-col relative overflow-hidden">
+      
+      <!-- iOS Pro Canvas Top Toolbar (Overflow Safe & Whitespace-Nowrap) -->
+      <div class="h-12 bg-slate-900/90 ios-blur border-b border-slate-800 px-3 flex items-center justify-between shrink-0 text-xs overflow-x-auto gap-3">
+        
+        <!-- View Switcher & Board Nav -->
+        <div class="flex items-center space-x-2 shrink-0 whitespace-nowrap">
+          <div class="bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center shadow-inner">
+            <button id="btnViewSingle" class="px-3 py-1 rounded-lg text-xs font-semibold bg-blue-600 text-white shadow transition whitespace-nowrap">
+              單板檢視
+            </button>
+            <button id="btnViewAll" class="px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 transition whitespace-nowrap">
+              多畫板並排總覽
+            </button>
+          </div>
+
+          <!-- Board Paging -->
+          <div id="boardNavControls" class="flex items-center space-x-1 bg-slate-950 px-2 py-0.5 rounded-xl border border-slate-800 shrink-0">
+            <button id="btnPrevBoard" class="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 transition">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
+            </button>
+            <span id="boardPagination" class="font-bold text-slate-200 mono text-xs px-1.5 whitespace-nowrap">
+              第 1 / 1 塊
+            </span>
+            <button id="btnNextBoard" class="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 transition">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+
+          <span id="canvasBedDimensionLabel" class="text-slate-400 text-xs mono font-semibold hidden md:inline whitespace-nowrap">700 × 1200 mm</span>
+        </div>
+
+        <!-- Layer Toggles -->
+        <div class="flex items-center space-x-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 shrink-0 whitespace-nowrap">
+          <span class="text-[10px] text-slate-500 uppercase px-1 font-bold">塗層:</span>
+          
+          <button id="toggleCMYK" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center space-x-1 transition whitespace-nowrap">
+            <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+            <span>CMYK</span>
+          </button>
+
+          <button id="toggleWhite" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-700/50 text-slate-200 border border-slate-600 flex items-center space-x-1 transition whitespace-nowrap">
+            <span class="w-2 h-2 rounded-full bg-white"></span>
+            <span>白墨 (White)</span>
+          </button>
+
+          <button id="toggleGloss" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center space-x-1 transition whitespace-nowrap">
+            <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+            <span>光油 (Gloss)</span>
+          </button>
+
+          <button id="toggleCut" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40 flex items-center space-x-1 transition whitespace-nowrap" title="切線顯示開關：符合 DIECUT / OUTCUT 圖層或非 White 專色 (<=1px)">
+            <span class="w-2 h-2 rounded-full bg-fuchsia-500"></span>
+            <span>刀線 (Cut)</span>
+          </button>
+
+          <!-- 刀線透視檢視模式 (一鍵淡化底圖看刀線) -->
+          <button id="btnCutInspectMode" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-fuchsia-300 border border-slate-700 flex items-center space-x-1 transition whitespace-nowrap" title="刀線透視檢視模式：將彩色底圖淡化為水印，極度凸顯每張貼紙的切割刀線">
+            <svg class="w-3.5 h-3.5 text-fuchsia-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"/></svg>
+            <span id="lblCutInspectText">刀線透視檢視</span>
+          </button>
+
+          <!-- 刀線外觀設定選單 (可切換洋紅/螢光綠/粗細/白邊) -->
+          <div class="relative">
+            <button id="btnToggleCutSettings" class="px-2 py-1 rounded-lg text-[11px] font-medium bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 flex items-center space-x-1 transition whitespace-nowrap" title="自訂刀線顏色、線寬與出血留白">
+              <span id="cutSettingsColorDot" class="w-2 h-2 rounded-full bg-[#ff007f] shadow"></span>
+              <span>刀線設定</span>
+            </button>
+            <div id="cutSettingsPopover" class="hidden absolute right-0 mt-2 w-72 bg-slate-900/95 ios-blur border border-slate-700 rounded-2xl shadow-2xl p-3.5 z-40 space-y-3 text-xs">
+              <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+                <span class="font-bold text-slate-200 text-xs">✂️ 數位切線 (DIECUT / OUTCUT) 設定</span>
+                <button id="btnCloseCutSettings" class="text-slate-400 hover:text-white p-0.5 text-xs">✕</button>
+              </div>
+
+              <!-- MC Motoparts 廠內切線雙重識別規範卡片 -->
+              <div class="bg-slate-950/90 border border-slate-800 rounded-xl p-2.5 space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-fuchsia-400 text-[11px] flex items-center space-x-1">
+                    <span>✂️ 廠內切線 2 種方法</span>
+                  </span>
+                  <span class="text-[9px] text-emerald-400 font-semibold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">MC Motoparts 規範</span>
+                </div>
+                
+                <div class="text-[10px] space-y-1.5 text-slate-300 leading-normal">
+                  <div class="flex items-start space-x-1.5">
+                    <span class="text-blue-400 font-bold shrink-0">方法 1:</span>
+                    <span><strong>圖層名稱</strong>：識別名為 <code class="text-fuchsia-300 font-mono bg-slate-900 px-1 rounded">DIECUT</code> 或 <code class="text-fuchsia-300 font-mono bg-slate-900 px-1 rounded">OUTCUT</code> 之物件</span>
+                  </div>
+                  <div class="flex items-start space-x-1.5">
+                    <span class="text-blue-400 font-bold shrink-0">方法 2:</span>
+                    <span><strong>專色路徑</strong>：凡帶有 <strong>Spot Color（除 WHITE 外）</strong> 且線條在 <strong>≤ 1px / 1pt</strong> 即為切線</span>
+                  </div>
+                </div>
+
+                <div class="pt-1.5 border-t border-slate-800/80">
+                  <label class="block text-slate-400 text-[10px] uppercase font-bold mb-1">AI 導出切線圖層命名 (Export Layer)</label>
+                  <select id="selectCutLayerName" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-slate-200 text-xs font-semibold focus:outline-none">
+                    <option value="DIECUT" selected>DIECUT (預設標準)</option>
+                    <option value="OUTCUT">OUTCUT</option>
+                    <option value="CutContour">CutContour (Roland / Mimaki)</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Color Selector -->
+              <div>
+                <label class="block text-slate-400 text-[10px] uppercase font-bold mb-1.5">刀線顏色 (Spot Color)</label>
+                <div class="grid grid-cols-4 gap-1.5">
+                  <button type="button" class="cut-color-btn p-1.5 rounded-xl border border-fuchsia-500 bg-fuchsia-500/20 text-fuchsia-300 text-[10px] font-bold flex flex-col items-center transition" data-color="#ff007f">
+                    <span class="w-3.5 h-3.5 rounded-full bg-[#ff007f] shadow"></span>
+                    <span class="mt-1">洋紅</span>
+                  </button>
+                  <button type="button" class="cut-color-btn p-1.5 rounded-xl border border-slate-800 hover:border-emerald-500/50 bg-slate-950 text-slate-300 text-[10px] font-bold flex flex-col items-center transition" data-color="#00ff66">
+                    <span class="w-3.5 h-3.5 rounded-full bg-[#00ff66] shadow"></span>
+                    <span class="mt-1">螢光綠</span>
+                  </button>
+                  <button type="button" class="cut-color-btn p-1.5 rounded-xl border border-slate-800 hover:border-cyan-500/50 bg-slate-950 text-slate-300 text-[10px] font-bold flex flex-col items-center transition" data-color="#00f0ff">
+                    <span class="w-3.5 h-3.5 rounded-full bg-[#00f0ff] shadow"></span>
+                    <span class="mt-1">電光青</span>
+                  </button>
+                  <button type="button" class="cut-color-btn p-1.5 rounded-xl border border-slate-800 hover:border-amber-500/50 bg-slate-950 text-slate-300 text-[10px] font-bold flex flex-col items-center transition" data-color="#ffe600">
+                    <span class="w-3.5 h-3.5 rounded-full bg-[#ffe600] shadow"></span>
+                    <span class="mt-1">警戒黃</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Stroke Width -->
+              <div>
+                <label class="block text-slate-400 text-[10px] uppercase font-bold mb-1.5">刀線寬度 (螢幕像素 non-scaling)</label>
+                <div class="grid grid-cols-3 gap-1.5">
+                  <button type="button" class="cut-width-btn py-1 px-2 rounded-xl border border-slate-800 text-slate-400 text-[11px] font-semibold transition" data-width="1.5">1.5px (細)</button>
+                  <button type="button" class="cut-width-btn py-1 px-2 rounded-xl border border-blue-500 bg-blue-500/20 text-blue-300 text-[11px] font-bold transition" data-width="2.5">2.5px (標準)</button>
+                  <button type="button" class="cut-width-btn py-1 px-2 rounded-xl border border-slate-800 text-slate-400 text-[11px] font-semibold transition" data-width="4.0">4.0px (超醒目)</button>
+                </div>
+              </div>
+
+              <!-- Options: Casing & Dash -->
+              <div class="space-y-1.5 pt-1 border-t border-slate-800/80">
+                <label class="flex items-center justify-between cursor-pointer py-1">
+                  <span class="text-slate-300 text-[11px]">雙層黑底對比描邊 (防混底色)</span>
+                  <input id="optCutCasing" type="checkbox" checked class="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-700">
+                </label>
+                <label class="flex items-center justify-between cursor-pointer py-1">
+                  <span class="text-slate-300 text-[11px]">動態/虛線輪廓 (走馬線)</span>
+                  <input id="optCutDashed" type="checkbox" class="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-700">
+                </label>
+              </div>
+
+              <!-- Bleed / Offset -->
+              <div class="pt-1 border-t border-slate-800/80">
+                <label class="block text-slate-400 text-[10px] uppercase font-bold mb-1">裁切外擴留白 (Offset / Bleed)</label>
+                <select id="selectCutOffset" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-1.5 text-slate-200 text-xs font-semibold focus:outline-none">
+                  <option value="0" selected>0 mm (正切貼紙邊界)</option>
+                  <option value="1">+1 mm (外擴 1mm 留白邊)</option>
+                  <option value="2">+2 mm (外擴 2mm 留白邊)</option>
+                  <option value="-1">-1 mm (內縮 1mm 防露白)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Zoom / Viewport controls -->
+        <div class="flex items-center space-x-1 shrink-0 whitespace-nowrap">
+          <button id="btnZoomOut" class="p-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 transition" title="縮小">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
+          </button>
+          <span id="zoomLabel" class="text-slate-400 mono text-xs w-11 text-center font-bold">100%</span>
+          <button id="btnZoomIn" class="p-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 transition" title="放大">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          </button>
+          <button id="btnFitView" class="px-2.5 py-1 rounded-lg bg-slate-850 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-medium transition whitespace-nowrap">
+            適應全貌
+          </button>
+        </div>
+      </div>
+
+      <!-- Canvas Viewport -->
+      <div id="viewportContainer" class="flex-1 bg-slate-950 relative overflow-hidden flex items-center justify-center p-6 cursor-grab active:cursor-grabbing">
+        
+        <div id="boardCanvasWrapper" class="relative bg-slate-900 shadow-2xl rounded-lg transition-transform duration-75 border border-slate-800">
+          <svg id="svgBedBoard" class="w-full h-full block">
+            <defs>
+              <pattern id="bedGrid" width="40" height="40" patternUnits="userSpaceOnUse">
+                <rect width="40" height="40" fill="#0b1120"/>
+                <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#172554" stroke-width="0.75" opacity="0.4"/>
+                <circle cx="20" cy="20" r="1.5" fill="#3b82f6" opacity="0.3"/>
+              </pattern>
+              <linearGradient id="glossSheen" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#ffffff" stop-opacity="0.35"/>
+                <stop offset="50%" stop-color="#fef08a" stop-opacity="0.15"/>
+                <stop offset="100%" stop-color="#f59e0b" stop-opacity="0.45"/>
+              </linearGradient>
+            </defs>
+
+            <g id="svgRootGroup"></g>
+          </svg>
+        </div>
+
+        <!-- Floating iOS Glass Status Pill (Clean Horizontal Layout, Never Squished) -->
+        <div class="absolute bottom-4 left-4 right-4 md:right-auto bg-slate-900/90 ios-blur border border-slate-700/80 rounded-2xl px-3.5 py-2 text-xs shadow-2xl flex flex-wrap items-center gap-x-3 gap-y-1 pointer-events-none z-10">
+          <div class="flex items-center space-x-1.5 shrink-0">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span class="text-slate-400">利用率:</span>
+            <span id="canvasCurrentYield" class="font-bold text-emerald-400 mono">0%</span>
+          </div>
+          <div class="h-3 w-px bg-slate-700 hidden sm:block shrink-0"></div>
+          <div class="flex items-center space-x-1 shrink-0">
+            <span class="text-slate-400">規格:</span>
+            <span id="canvasSpacingInfo" class="font-semibold text-amber-400 mono text-[11px]">間隙 4mm | 留邊 15mm | 畫板距 80mm</span>
+          </div>
+          <div class="h-3 w-px bg-slate-700 hidden md:block shrink-0"></div>
+          <div class="flex items-center space-x-1 shrink-0">
+            <span class="text-slate-400">選中:</span>
+            <span id="canvasSelectedItemText" class="font-medium text-blue-300">無</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Inspector Bar -->
+      <div id="inspectorPanel" class="h-11 bg-slate-900/80 ios-blur border-t border-slate-800 px-4 flex items-center justify-between shrink-0 text-xs text-slate-300">
+        <div class="flex items-center space-x-3 truncate">
+          <span class="text-slate-500 font-bold uppercase text-[10px]">物件檢視:</span>
+          <span id="inspectItemName" class="font-bold text-white text-xs">-</span>
+          <span class="text-slate-700">|</span>
+          <span>尺寸: <span id="inspectItemSize" class="mono text-blue-300 font-semibold">-</span></span>
+          <span class="text-slate-700">|</span>
+          <span>旋轉狀態: <span id="inspectItemRot" class="mono text-amber-300 font-semibold">-</span></span>
+          <span class="text-slate-700">|</span>
+          <span>裁決依據: <span id="inspectItemRotReason" class="text-slate-300 font-medium">-</span></span>
+          <span class="text-slate-700">|</span>
+          <span id="lblCutStatusBadge" class="hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-fuchsia-500/15 text-fuchsia-400 border border-fuchsia-500/30 whitespace-nowrap">✂️ 刀線 CutContour: 高對比已就緒</span>
+        </div>
+        <div class="flex items-center space-x-2 text-[11px] text-slate-400 shrink-0">
+          <kbd class="px-2 py-0.5 bg-slate-800 rounded-lg border border-slate-700 mono text-[10px]">滾輪</kbd> 縮放
+          <kbd class="px-2 py-0.5 bg-slate-800 rounded-lg border border-slate-700 mono text-[10px] ml-1">拖曳</kbd> 移動畫布
+        </div>
+      </div>
+    </main>
+
+    <!-- Right Sidebar: Item Queue & Uploads (iOS Card List) -->
+    <aside id="rightSidebarPanel" class="w-84 max-w-[320px] bg-slate-900/90 ios-blur border-l border-slate-800/80 flex flex-col shrink-0 text-xs transition-all duration-200 z-10">
+      
+      <!-- Prominent Header & Upload Card -->
+      <div class="p-3.5 border-b border-slate-800/80 space-y-2.5">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="font-bold text-slate-100 text-xs tracking-tight">排產圖稿清單</h2>
+            <span class="text-[10px] text-slate-400">支援即時上傳圖片自定義尺寸</span>
+          </div>
+          <button id="btnOpenAddModal" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white rounded-xl text-xs font-semibold flex items-center space-x-1 transition shadow-md shadow-blue-600/30">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/></svg>
+            <span>加入圖稿</span>
+          </button>
+        </div>
+
+        <!-- iOS Quick Drag-and-Drop / Upload Box -->
+        <label for="batchFileInput" class="block border-2 border-dashed border-blue-500/40 hover:border-blue-500 bg-blue-500/5 hover:bg-blue-500/10 rounded-2xl p-3 text-center cursor-pointer transition">
+          <input id="batchFileInput" type="file" multiple accept="image/*,.ai,.pdf,.eps" class="hidden">
+          <div class="flex flex-col items-center space-y-1">
+            <svg class="w-6 h-6 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            <span class="font-bold text-blue-400 text-xs">點擊上傳貼紙圖檔 (支援 Adobe .ai / .pdf / .png / .jpg)</span>
+            <span class="text-[10px] text-slate-400">或直接拖曳多張圖片到此處自動加載</span>
+          </div>
+        </label>
+      </div>
+
+      <!-- Quick Action Bar -->
+      <div class="px-3.5 py-1.5 bg-slate-950/60 border-b border-slate-800/80 flex items-center justify-between text-[11px]">
+        <button id="btnLoadRacingPreset" class="text-blue-400 hover:text-blue-300 font-semibold transition">
+          重設參考照片範本
+        </button>
+        <button id="btnClearAllItems" class="text-slate-500 hover:text-rose-400 transition">
+          清空列表
+        </button>
+      </div>
+
+      <!-- Item List Container -->
+      <div id="itemListContainer" class="flex-1 overflow-y-auto p-3 space-y-2">
+        <!-- Rendered items go here -->
+      </div>
+
+      <!-- Production Summary Footer -->
+      <div class="p-3.5 bg-slate-950 border-t border-slate-800 text-[11px] space-y-2">
+        <div class="flex justify-between text-slate-400">
+          <span>需求總件數:</span>
+          <span id="summaryTotalQty" class="font-bold text-slate-200 mono">0 件</span>
+        </div>
+        <div class="flex justify-between text-slate-400">
+          <span>需用平板板數:</span>
+          <span id="summaryTotalBoards" class="font-bold text-amber-400 mono">0 塊</span>
+        </div>
+        <div class="flex justify-between text-slate-400">
+          <span>材料利用率:</span>
+          <span id="summaryAvgYield" class="font-bold text-emerald-400 mono">0%</span>
+        </div>
+        <button id="btnExportSummaryReport" class="w-full mt-1.5 py-2 bg-slate-850 hover:bg-slate-800 border border-slate-700 rounded-xl text-slate-200 font-semibold text-xs flex items-center justify-center space-x-1.5 shadow transition">
+          <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          <span>下載生產排產料表 (JSON/TXT)</span>
+        </button>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- iOS-Style Add & Upload Item Modal Dialog -->
+  <div id="addItemModal" class="fixed inset-0 bg-black/75 ios-blur hidden items-center justify-center z-50 p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
+      
+      <!-- Modal Header -->
+      <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+        <h3 class="font-bold text-sm text-white flex items-center space-x-2">
+          <span>➕ 新增貼紙稿件與上傳圖片</span>
+        </h3>
+        <button id="btnCloseAddModal" class="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-5 space-y-4 text-xs overflow-y-auto max-h-[75vh]">
+        
+        <!-- Image Upload Dropzone inside Modal -->
+        <div>
+          <label class="block text-slate-300 font-semibold text-xs mb-1.5">上傳圖案檔案 (選填，自動填入比例)</label>
+          <div class="flex items-center space-x-3">
+            <label for="modalFileInput" class="flex-1 border-2 border-dashed border-blue-500/40 hover:border-blue-500 bg-blue-500/5 hover:bg-blue-500/10 rounded-2xl p-3 text-center cursor-pointer transition">
+              <input id="modalFileInput" type="file" accept="image/*,.ai,.pdf,.eps" class="hidden">
+              <span class="text-blue-400 font-semibold block text-xs">📁 選擇本機圖檔 (支援 Adobe .ai / .pdf / .png / .jpg)</span>
+              <span id="modalFileNameLabel" class="text-[10px] text-slate-400 block mt-0.5">支援 .ai、.pdf、.png、.jpg 檔案</span>
+            </label>
+            <div id="modalImgPreviewContainer" class="w-16 h-16 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center overflow-hidden shrink-0">
+              <span class="text-slate-600 text-[10px]">預覽</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-slate-300 font-medium text-[11px] mb-1">圖稿名稱 / SKU</label>
+          <input id="modalItemName" type="text" placeholder="例如: 916 DNA 賽車門板" class="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-3 py-2 text-slate-100 text-xs focus:outline-none focus:border-blue-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800">
+            <label class="block text-slate-400 text-[10px] mb-1">闊度 Width (mm)</label>
+            <input id="modalItemWidth" type="number" value="280" min="10" max="3000" class="w-full bg-transparent text-slate-100 mono font-bold text-sm focus:outline-none">
+          </div>
+          <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800">
+            <label class="block text-slate-400 text-[10px] mb-1">高度 Height (mm)</label>
+            <input id="modalItemHeight" type="number" value="180" min="10" max="3000" class="w-full bg-transparent text-slate-100 mono font-bold text-sm focus:outline-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-2.5">
+          <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800">
+            <label class="block text-slate-400 text-[10px] mb-1">輪廓形狀</label>
+            <select id="modalItemShape" class="w-full bg-transparent text-slate-100 text-xs font-semibold focus:outline-none">
+              <option value="rect">矩形 (Rect)</option>
+              <option value="oval">橢圓形 (Oval)</option>
+              <option value="circle">圓形 (Circle)</option>
+              <option value="contour">異形 (Contour)</option>
+            </select>
+          </div>
+          <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800">
+            <label class="block text-slate-400 text-[10px] mb-1">生產數量</label>
+            <input id="modalItemQty" type="number" value="2" min="1" max="1000" class="w-full bg-transparent text-slate-100 mono font-bold text-sm focus:outline-none">
+          </div>
+          <div class="bg-slate-950/70 p-2.5 rounded-xl border border-slate-800">
+            <label class="block text-slate-400 text-[10px] mb-1">旋轉規則</label>
+            <select id="modalItemRotMode" class="w-full bg-transparent text-slate-100 text-xs font-semibold focus:outline-none">
+              <option value="auto">自動 (0°/90°)</option>
+              <option value="lock0">鎖定 0° (禁轉)</option>
+              <option value="lock90">強制 90°</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Included Coatings -->
+        <div>
+          <label class="block text-slate-400 text-[11px] mb-1.5 font-medium">包含塗層 (Included Coatings)</label>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <label class="flex items-center space-x-2.5 bg-slate-950 p-2.5 rounded-xl border border-slate-800 cursor-pointer">
+              <input id="modalHasWhite" type="checkbox" checked class="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-700">
+              <span class="text-slate-200">White 白墨底層</span>
+            </label>
+            <label class="flex items-center space-x-2.5 bg-slate-950 p-2.5 rounded-xl border border-slate-800 cursor-pointer">
+              <input id="modalHasGloss" type="checkbox" checked class="w-4 h-4 rounded text-blue-600 bg-slate-900 border-slate-700">
+              <span class="text-slate-200">Gloss 光油塗層</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="px-5 py-3.5 bg-slate-950 border-t border-slate-800 flex justify-end space-x-2.5">
+        <button id="btnCancelAddModal" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition">
+          取消
+        </button>
+        <button id="btnConfirmAddItem" class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold transition shadow-lg shadow-blue-600/30">
+          確認加入
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification (iOS Dynamic Island Style) -->
+  <div id="toastNotification" class="fixed top-5 left-1/2 transform -translate-x-1/2 bg-slate-900/90 ios-blur border border-blue-500/40 text-white px-5 py-2 rounded-full shadow-2xl text-xs flex items-center space-x-2.5 -translate-y-20 opacity-0 transition-all duration-200 z-50">
+    <span class="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+    <span id="toastMessage" class="font-medium">已完成排版計算</span>
+  </div>
+
+  <!-- App Logic & Nesting Engine -->
+  <script>
+    const state = {
+      bed: {
+        width: 700,
+        height: 1200,
+        margin: 15,
+        spacing: 4,
+        artboardSpacing: 80
+      },
+      options: {
+        allowRotate: true,
+        autoFillGaps: true,
+        addRegistrationMarks: true,
+        addJobTag: true
+      },
+      layersVisible: {
+        cmyk: true,
+        white: true,
+        gloss: true,
+        cut: true
+      },
+      cutSettings: {
+        color: '#ff007f', // Spot Magenta / CutContour
+        width: 2.5, // screen px (non-scaling)
+        style: 'solid', // 'solid' | 'dashed'
+        casing: true, // Black contrast casing underneath
+        inspectMode: false, // Dim CMYK to 12% for pure cutline inspection
+        offsetMm: 0, // Bleed offset (0mm, +1mm, +2mm, -1mm)
+        layerName: 'DIECUT', // 'DIECUT' | 'OUTCUT' | 'CutContour' (MC 規範 1)
+        spotRuleMaxPt: 1.0 // <= 1px (1pt) 非 White 專色 (MC 規範 2)
+      },
+      view: {
+        mode: 'single',
+        scale: 1,
+        panX: 0,
+        panY: 0,
+        currentBoardIndex: 0
+      },
+      selectedItemId: null,
+      tempUploadedImg: null, // Holds dataURL for modal
+      items: [], // 預設全新空白，只放置用戶自己上傳的 AI / 圖片圖稿
+      boards: []
+    };
+
+    // --- Nesting Engine ---
+    function runNestingAlgorithm() {
+      const bedW = state.bed.width;
+      const bedH = state.bed.height;
+      const margin = state.bed.margin;
+      const spacing = state.bed.spacing;
+      const globalAllowRotate = state.options.allowRotate;
+
+      const usableW = bedW - (margin * 2);
+      const usableH = bedH - (margin * 2);
+
+      if (usableW <= 0 || usableH <= 0) {
+        showToast('工作台尺寸過小或邊距過大！');
+        return;
+      }
+
+      const pieces = [];
+      state.items.forEach(item => {
+        for (let i = 0; i < item.qty; i++) {
+          pieces.push({
+            uniqueId: `${item.id}_${i}`,
+            sourceId: item.id,
+            name: item.name,
+            w: item.width,
+            h: item.height,
+            shape: item.shape,
+            rotMode: item.rotMode || 'auto',
+            hasWhite: item.hasWhite,
+            hasGloss: item.hasGloss,
+            color: item.color,
+            label: item.label,
+            imgUrl: item.imgUrl,
+            area: item.width * item.height
+          });
+        }
+      });
+
+      pieces.sort((a, b) => b.area - a.area);
+
+      const boards = [];
+      let remainingPieces = [...pieces];
+
+      while (remainingPieces.length > 0 && boards.length < 50) {
+        const board = {
+          boardIndex: boards.length + 1,
+          items: [],
+          usedArea: 0,
+          totalArea: bedW * bedH,
+          usableArea: usableW * usableH,
+          freeRectangles: [
+            { x: margin, y: margin, w: usableW, h: usableH }
+          ]
+        };
+
+        const unplaced = [];
+
+        for (const piece of remainingPieces) {
+          let placed = false;
+          let bestRectIndex = -1;
+          let bestRotated = false;
+          let bestShortSideFit = Infinity;
+          let rotReason = '';
+
+          let canTryNormal = (piece.rotMode !== 'lock90');
+          let canTryRotated = (globalAllowRotate && piece.rotMode !== 'lock0');
+
+          for (let r = 0; r < board.freeRectangles.length; r++) {
+            const rect = board.freeRectangles[r];
+
+            if (canTryNormal) {
+              const itemW1 = piece.w;
+              const itemH1 = piece.h;
+              if (itemW1 <= rect.w && itemH1 <= rect.h) {
+                const leftoverW = rect.w - itemW1;
+                const leftoverH = rect.h - itemH1;
+                const shortSide = Math.min(leftoverW, leftoverH);
+                if (shortSide < bestShortSideFit) {
+                  bestShortSideFit = shortSide;
+                  bestRectIndex = r;
+                  bestRotated = false;
+                  rotReason = piece.rotMode === 'lock0' ? '依設定強制正向 0°' : '正放留下最佳矩形空間';
+                }
+              }
+            }
+
+            if (canTryRotated) {
+              const itemW2 = piece.h;
+              const itemH2 = piece.w;
+              if (itemW2 <= rect.w && itemH2 <= rect.h) {
+                const leftoverW = rect.w - itemW2;
+                const leftoverH = rect.h - itemH2;
+                const shortSide = Math.min(leftoverW, leftoverH);
+                if (shortSide < bestShortSideFit) {
+                  bestShortSideFit = shortSide;
+                  bestRectIndex = r;
+                  bestRotated = true;
+                  rotReason = piece.rotMode === 'lock90' ? '依設定強制 90° 擺放' : '轉90°適應板寬，剩餘空間最方正';
+                }
+              }
+            }
+          }
+
+          if (bestRectIndex !== -1) {
+            const targetRect = board.freeRectangles.splice(bestRectIndex, 1)[0];
+            const finalW = bestRotated ? piece.h : piece.w;
+            const finalH = bestRotated ? piece.w : piece.h;
+
+            const placedX = targetRect.x;
+            const placedY = targetRect.y;
+
+            board.items.push({
+              ...piece,
+              x: placedX,
+              y: placedY,
+              placedW: finalW,
+              placedH: finalH,
+              rotated: bestRotated,
+              rotReason: rotReason
+            });
+
+            board.usedArea += (piece.w * piece.h);
+
+            const rightW = targetRect.w - finalW - spacing;
+            const bottomH = targetRect.h - finalH - spacing;
+
+            if (rightW > 10) {
+              board.freeRectangles.push({
+                x: placedX + finalW + spacing,
+                y: placedY,
+                w: rightW,
+                h: finalH
+              });
+            }
+
+            if (bottomH > 10) {
+              board.freeRectangles.push({
+                x: placedX,
+                y: placedY + finalH + spacing,
+                w: targetRect.w,
+                h: bottomH
+              });
+            }
+
+            placed = true;
+          }
+
+          if (!placed) {
+            unplaced.push(piece);
+          }
+        }
+
+        board.yieldPct = ((board.usedArea / board.totalArea) * 100).toFixed(1);
+        boards.push(board);
+
+        if (unplaced.length === remainingPieces.length) {
+          console.warn('Piece too large for board!');
+          break;
+        }
+
+        remainingPieces = unplaced;
+      }
+
+      state.boards = boards;
+      if (state.view.currentBoardIndex >= boards.length) {
+        state.view.currentBoardIndex = 0;
+      }
+
+      updateUI();
+      fitCanvasToViewport();
+    }
+
+    // --- UI Update & Rendering ---
+    function updateUI() {
+      const totalBoards = state.boards.length;
+      const currentBoard = state.boards[state.view.currentBoardIndex];
+
+      if (currentBoard) {
+        document.getElementById('navBoardStat').textContent = `第 ${state.view.currentBoardIndex + 1} / ${totalBoards} 塊`;
+        document.getElementById('navYieldStat').textContent = `${currentBoard.yieldPct}%`;
+        document.getElementById('navItemCountStat').textContent = `${currentBoard.items.length} 件`;
+      } else {
+        document.getElementById('navBoardStat').textContent = '無排版';
+        document.getElementById('navYieldStat').textContent = '0.0%';
+        document.getElementById('navItemCountStat').textContent = '0 件';
+      }
+
+      document.getElementById('boardPagination').textContent = totalBoards > 0 
+        ? `第 ${state.view.currentBoardIndex + 1} / ${totalBoards} 塊`
+        : '0 / 0';
+      document.getElementById('btnPrevBoard').disabled = state.view.currentBoardIndex <= 0;
+      document.getElementById('btnNextBoard').disabled = state.view.currentBoardIndex >= totalBoards - 1;
+      document.getElementById('canvasBedDimensionLabel').textContent = `${state.bed.width} × ${state.bed.height} mm`;
+
+      const totalPiecesCount = state.items.reduce((sum, item) => sum + item.qty, 0);
+      document.getElementById('summaryTotalQty').textContent = `${totalPiecesCount} 件`;
+      document.getElementById('summaryTotalBoards').textContent = `${totalBoards} 塊板`;
+
+      let totalUsedArea = 0;
+      let totalBedArea = 0;
+      state.boards.forEach(b => {
+        totalUsedArea += b.usedArea;
+        totalBedArea += b.totalArea;
+      });
+      const avgYield = totalBedArea > 0 ? ((totalUsedArea / totalBedArea) * 100).toFixed(1) : 0;
+      document.getElementById('summaryAvgYield').textContent = `${avgYield}%`;
+
+      if (currentBoard) {
+        document.getElementById('canvasCurrentYield').textContent = `${currentBoard.yieldPct}%`;
+      }
+      document.getElementById('canvasSpacingInfo').textContent = `間隙 ${state.bed.spacing}mm | 留邊 ${state.bed.margin}mm | 畫板距 ${state.bed.artboardSpacing}mm`;
+
+      renderItemList();
+      renderSVGCanvas();
+    }
+
+    // --- SVG Canvas Rendering ---
+    function renderSVGCanvas() {
+      const svg = document.getElementById('svgBedBoard');
+      const rootG = document.getElementById('svgRootGroup');
+      rootG.innerHTML = '';
+
+      const bedW = state.bed.width;
+      const bedH = state.bed.height;
+      const margin = state.bed.margin;
+      const artboardGap = state.bed.artboardSpacing;
+
+      if (state.items.length === 0) {
+        svg.setAttribute('viewBox', `0 0 ${bedW} ${bedH}`);
+        // Draw empty bed with dashed guide
+        const emptyG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        const bedRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        bedRect.setAttribute('x', 0); bedRect.setAttribute('y', 0);
+        bedRect.setAttribute('width', bedW); bedRect.setAttribute('height', bedH);
+        bedRect.setAttribute('fill', 'url(#bedGrid)');
+        bedRect.setAttribute('stroke', '#334155'); bedRect.setAttribute('stroke-width', '1.5');
+        bedRect.setAttribute('rx', '8');
+        emptyG.appendChild(bedRect);
+
+        // Center Hint Text
+        const textG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        const centerText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        centerText.setAttribute('x', bedW / 2); centerText.setAttribute('y', bedH / 2 - 15);
+        centerText.setAttribute('text-anchor', 'middle');
+        centerText.setAttribute('fill', '#60a5fa'); centerText.setAttribute('font-size', '20');
+        centerText.setAttribute('font-weight', 'bold');
+        centerText.textContent = '平板準備就緒 (目前空白)';
+
+        const subText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        subText.setAttribute('x', bedW / 2); subText.setAttribute('y', bedH / 2 + 18);
+        subText.setAttribute('text-anchor', 'middle');
+        subText.setAttribute('fill', '#94a3b8'); subText.setAttribute('font-size', '13');
+        subText.textContent = '請拖入 Adobe AI (.ai) 檔案或點擊上方「加入圖稿」開始排版';
+
+        textG.appendChild(centerText);
+        textG.appendChild(subText);
+        emptyG.appendChild(textG);
+
+        rootG.appendChild(emptyG);
+        return;
+      }
+      if (state.boards.length === 0) return;
+
+      if (state.view.mode === 'single') {
+        svg.setAttribute('viewBox', `0 0 ${bedW} ${bedH}`);
+        const currentBoard = state.boards[state.view.currentBoardIndex];
+        if (currentBoard) {
+          renderSingleBoardSVG(rootG, currentBoard, 0, 0, bedW, bedH, margin, true);
+        }
+      } else {
+        const totalW = (state.boards.length * bedW) + ((state.boards.length - 1) * artboardGap);
+        const totalH = bedH;
+        svg.setAttribute('viewBox', `0 0 ${totalW} ${totalH}`);
+
+        state.boards.forEach((board, idx) => {
+          const offsetX = idx * (bedW + artboardGap);
+          renderSingleBoardSVG(rootG, board, offsetX, 0, bedW, bedH, margin, idx === state.view.currentBoardIndex);
+
+          if (idx < state.boards.length - 1) {
+            const gapLineG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            const gapX1 = offsetX + bedW;
+            const gapX2 = gapX1 + artboardGap;
+            const midY = bedH / 2;
+
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', gapX1);
+            line.setAttribute('y1', midY);
+            line.setAttribute('x2', gapX2);
+            line.setAttribute('y2', midY);
+            line.setAttribute('stroke', '#3b82f6');
+            line.setAttribute('stroke-width', '1.5');
+            line.setAttribute('stroke-dasharray', '4,4');
+
+            const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            text.setAttribute('x', gapX1 + artboardGap / 2);
+            text.setAttribute('y', midY - 6);
+            text.setAttribute('text-anchor', 'middle');
+            text.setAttribute('fill', '#60a5fa');
+            text.setAttribute('font-size', '11');
+            text.setAttribute('font-family', 'monospace');
+            text.textContent = `畫板距 ${artboardGap}mm`;
+
+            gapLineG.appendChild(line);
+            gapLineG.appendChild(text);
+            rootG.appendChild(gapLineG);
+          }
+        });
+      }
+    }
+
+    function renderSingleBoardSVG(parentG, board, offsetX, offsetY, bedW, bedH, margin, isFocused) {
+      const boardG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      boardG.setAttribute('transform', `translate(${offsetX}, ${offsetY})`);
+
+      const bedRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      bedRect.setAttribute('x', 0);
+      bedRect.setAttribute('y', 0);
+      bedRect.setAttribute('width', bedW);
+      bedRect.setAttribute('height', bedH);
+      bedRect.setAttribute('fill', 'url(#bedGrid)');
+      bedRect.setAttribute('stroke', isFocused ? '#3b82f6' : '#334155');
+      bedRect.setAttribute('stroke-width', isFocused ? '3' : '1.5');
+      bedRect.setAttribute('rx', '8');
+      boardG.appendChild(bedRect);
+
+      const marginRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      marginRect.setAttribute('x', margin);
+      marginRect.setAttribute('y', margin);
+      marginRect.setAttribute('width', Math.max(0, bedW - margin * 2));
+      marginRect.setAttribute('height', Math.max(0, bedH - margin * 2));
+      marginRect.setAttribute('fill', 'none');
+      marginRect.setAttribute('stroke', '#6366f1');
+      marginRect.setAttribute('stroke-dasharray', '4,4');
+      marginRect.setAttribute('stroke-width', '1.2');
+      marginRect.setAttribute('opacity', '0.6');
+      boardG.appendChild(marginRect);
+
+      if (state.options.addRegistrationMarks) {
+        renderRegistrationMarks(boardG, bedW, bedH, margin);
+      }
+      if (state.options.addJobTag) {
+        renderJobTag(boardG, bedW, bedH, margin, board.boardIndex, state.boards.length);
+      }
+
+      board.items.forEach(item => {
+        const itemG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        itemG.setAttribute('class', 'cursor-pointer transition-opacity duration-150');
+        itemG.setAttribute('data-item-id', item.uniqueId);
+
+        itemG.addEventListener('click', (e) => {
+          e.stopPropagation();
+          selectItem(item);
+        });
+
+        const isSelected = state.selectedItemId === item.uniqueId;
+        const x = item.x;
+        const y = item.y;
+        const w = item.placedW;
+        const h = item.placedH;
+
+        // White Layer
+        if (state.layersVisible.white && item.hasWhite) {
+          const whiteLayer = createShapeElement(item.shape, x, y, w, h, {
+            fill: '#ffffff',
+            opacity: '0.85',
+            filter: 'drop-shadow(0 0 1px #cbd5e1)'
+          });
+          itemG.appendChild(whiteLayer);
+        }
+
+        // CMYK Graphic Layer
+        if (state.layersVisible.cmyk) {
+          const cmykOpacity = state.cutSettings.inspectMode ? '0.12' : '1';
+          if (item.imgUrl) {
+            // Render actual uploaded image!
+            const imgEl = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+            imgEl.setAttribute('href', item.imgUrl);
+            imgEl.setAttribute('x', x);
+            imgEl.setAttribute('y', y);
+            imgEl.setAttribute('width', w);
+            imgEl.setAttribute('height', h);
+            imgEl.setAttribute('preserveAspectRatio', 'none');
+            imgEl.setAttribute('opacity', cmykOpacity);
+            itemG.appendChild(imgEl);
+          } else {
+            const cmykLayer = createShapeElement(item.shape, x, y, w, h, {
+              fill: item.color,
+              stroke: '#1e293b',
+              strokeWidth: '1',
+              opacity: cmykOpacity
+            });
+            itemG.appendChild(cmykLayer);
+
+            const textEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            textEl.setAttribute('x', x + w / 2);
+            textEl.setAttribute('y', y + h / 2 + 6);
+            textEl.setAttribute('text-anchor', 'middle');
+            textEl.setAttribute('fill', item.color === '#ffffff' ? '#0f172a' : '#f8fafc');
+            textEl.setAttribute('font-weight', 'bold');
+            textEl.setAttribute('font-size', Math.min(w * 0.28, h * 0.4, 42));
+            textEl.setAttribute('font-family', 'sans-serif');
+            textEl.setAttribute('letter-spacing', '1');
+            textEl.setAttribute('opacity', cmykOpacity);
+            textEl.textContent = item.label;
+            itemG.appendChild(textEl);
+          }
+
+          const dimEl = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          dimEl.setAttribute('x', x + w / 2);
+          dimEl.setAttribute('y', y + h - 6);
+          dimEl.setAttribute('text-anchor', 'middle');
+          dimEl.setAttribute('fill', '#ffffff');
+          dimEl.setAttribute('stroke', '#000000');
+          dimEl.setAttribute('stroke-width', '0.5');
+          dimEl.setAttribute('paint-order', 'stroke fill');
+          dimEl.setAttribute('font-size', Math.min(w * 0.08, 11));
+          dimEl.setAttribute('font-family', 'sans-serif');
+          dimEl.setAttribute('opacity', state.cutSettings.inspectMode ? '0.25' : '1');
+          dimEl.textContent = `${item.w}×${item.h}mm ${item.rotated ? '↷90°' : ''}`;
+          itemG.appendChild(dimEl);
+        }
+
+        // Gloss Layer
+        if (state.layersVisible.gloss && item.hasGloss) {
+          const glossLayer = createShapeElement(item.shape, x, y, w, h, {
+            fill: 'url(#glossSheen)',
+            opacity: state.cutSettings.inspectMode ? '0.15' : '0.65',
+            mixBlendMode: 'screen'
+          });
+          itemG.appendChild(glossLayer);
+        }
+
+        // CutContour Layer (Dual-Stroke Non-Scaling Ultra High Visibility)
+        if (state.layersVisible.cut) {
+          const cutG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+          cutG.setAttribute('class', 'cut-contour-group');
+
+          const offset = state.cutSettings.offsetMm || 0;
+          const cutX = x - offset;
+          const cutY = y - offset;
+          const cutW = w + offset * 2;
+          const cutH = h + offset * 2;
+          const cutShape = item.shape || 'rect';
+
+          // 1. High-Contrast Black Underlay Casing (Prevents blending into white/dark/rainbow decals)
+          if (state.cutSettings.casing) {
+            const casingLayer = createShapeElement(cutShape, cutX, cutY, cutW, cutH, {
+              fill: 'none',
+              stroke: '#000000',
+              strokeWidth: `${parseFloat(state.cutSettings.width) + 2.5}`,
+              opacity: '0.9',
+              vectorEffect: 'non-scaling-stroke'
+            });
+            cutG.appendChild(casingLayer);
+          }
+
+          // 2. Core High-Visibility Non-Scaling CutContour Line (Always 2.5px screen width!)
+          const coreLayer = createShapeElement(cutShape, cutX, cutY, cutW, cutH, {
+            fill: 'none',
+            stroke: state.cutSettings.color,
+            strokeWidth: `${state.cutSettings.width}`,
+            strokeDasharray: state.cutSettings.style === 'dashed' || isSelected ? '6,3' : 'none',
+            vectorEffect: 'non-scaling-stroke'
+          });
+          cutG.appendChild(coreLayer);
+
+          // 3. Selection Glow
+          if (isSelected) {
+            const glowLayer = createShapeElement(cutShape, cutX, cutY, cutW, cutH, {
+              fill: 'none',
+              stroke: '#ffffff',
+              strokeWidth: `${parseFloat(state.cutSettings.width) + 1}`,
+              strokeDasharray: '4,4',
+              opacity: '0.9',
+              vectorEffect: 'non-scaling-stroke'
+            });
+            cutG.appendChild(glowLayer);
+          }
+
+          itemG.appendChild(cutG);
+        }
+
+        if (isSelected) {
+          const selectRing = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          selectRing.setAttribute('x', x - 3);
+          selectRing.setAttribute('y', y - 3);
+          selectRing.setAttribute('width', w + 6);
+          selectRing.setAttribute('height', h + 6);
+          selectRing.setAttribute('fill', 'none');
+          selectRing.setAttribute('stroke', '#38bdf8');
+          selectRing.setAttribute('stroke-width', '2.5');
+          selectRing.setAttribute('stroke-dasharray', '5,3');
+          itemG.appendChild(selectRing);
+        }
+
+        boardG.appendChild(itemG);
+      });
+
+      parentG.appendChild(boardG);
+    }
+
+    function createShapeElement(shape, x, y, w, h, attrs) {
+      let el;
+      if (shape === 'oval') {
+        el = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+        el.setAttribute('cx', x + w / 2);
+        el.setAttribute('cy', y + h / 2);
+        el.setAttribute('rx', w / 2);
+        el.setAttribute('ry', h / 2);
+      } else if (shape === 'circle') {
+        el = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        const radius = Math.min(w, h) / 2;
+        el.setAttribute('cx', x + w / 2);
+        el.setAttribute('cy', y + h / 2);
+        el.setAttribute('r', radius);
+      } else if (shape === 'round' || shape === 'round4') {
+        el = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        el.setAttribute('x', x);
+        el.setAttribute('y', y);
+        el.setAttribute('width', w);
+        el.setAttribute('height', h);
+        el.setAttribute('rx', 4);
+      } else if (shape === 'contour') {
+        el = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        el.setAttribute('x', x);
+        el.setAttribute('y', y);
+        el.setAttribute('width', w);
+        el.setAttribute('height', h);
+        el.setAttribute('rx', 18);
+      } else {
+        // Default rect
+        el = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        el.setAttribute('x', x);
+        el.setAttribute('y', y);
+        el.setAttribute('width', w);
+        el.setAttribute('height', h);
+        el.setAttribute('rx', shape === 'rect' ? 0 : 4);
+      }
+
+      for (const [k, v] of Object.entries(attrs)) {
+        if (k === 'fill') el.setAttribute('fill', v);
+        else if (k === 'stroke') el.setAttribute('stroke', v);
+        else if (k === 'strokeWidth') el.setAttribute('stroke-width', v);
+        else if (k === 'strokeDasharray') el.setAttribute('stroke-dasharray', v);
+        else if (k === 'opacity') el.setAttribute('opacity', v);
+        else if (k === 'filter') el.setAttribute('filter', v);
+        else if (k === 'vectorEffect') el.setAttribute('vector-effect', v);
+      }
+      return el;
+    }
+
+    function renderRegistrationMarks(group, bedW, bedH, margin) {
+      const markPositions = [
+        { x: margin / 2, y: margin / 2 },
+        { x: bedW - margin / 2, y: margin / 2 },
+        { x: margin / 2, y: bedH - margin / 2 },
+        { x: bedW - margin / 2, y: bedH - margin / 2 },
+        { x: bedW / 2, y: margin / 2 },
+        { x: bedW / 2, y: bedH - margin / 2 }
+      ];
+
+      markPositions.forEach(pos => {
+        const markG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', pos.x);
+        circle.setAttribute('cy', pos.y);
+        circle.setAttribute('r', 3.5);
+        circle.setAttribute('fill', '#000000');
+        circle.setAttribute('stroke', '#ffffff');
+        circle.setAttribute('stroke-width', '1');
+
+        const lineH = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        lineH.setAttribute('x1', pos.x - 7);
+        lineH.setAttribute('y1', pos.y);
+        lineH.setAttribute('x2', pos.x + 7);
+        lineH.setAttribute('y2', pos.y);
+        lineH.setAttribute('stroke', '#000000');
+        lineH.setAttribute('stroke-width', '0.7');
+
+        const lineV = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        lineV.setAttribute('x1', pos.x);
+        lineV.setAttribute('y1', pos.y - 7);
+        lineV.setAttribute('x2', pos.x);
+        lineV.setAttribute('y2', pos.y + 7);
+        lineV.setAttribute('stroke', '#000000');
+        lineV.setAttribute('stroke-width', '0.7');
+
+        markG.appendChild(circle);
+        markG.appendChild(lineH);
+        markG.appendChild(lineV);
+        group.appendChild(markG);
+      });
+    }
+
+    function renderJobTag(group, bedW, bedH, margin, boardIndex, totalBoards) {
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', margin);
+      text.setAttribute('y', margin - 4);
+      text.setAttribute('fill', '#94a3b8');
+      text.setAttribute('font-size', '9');
+      text.setAttribute('font-family', 'monospace');
+      text.textContent = `JOB: MC-MOTO | BOARD: ${boardIndex}/${totalBoards} | BED: ${bedW}x${bedH}mm | MARGIN: ${margin}mm | GAP: ${state.bed.spacing}mm`;
+      group.appendChild(text);
+    }
+
+    // --- Right Sidebar Item List (iOS Cards with Image Thumbnails) ---
+    function renderItemList() {
+      const container = document.getElementById('itemListContainer');
+      container.innerHTML = '';
+
+      if (state.items.length === 0) {
+        container.innerHTML = `
+          <div class="p-6 text-center text-slate-500 space-y-2 border border-dashed border-slate-800 rounded-2xl bg-slate-950/40">
+            <svg class="w-8 h-8 mx-auto text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <p class="text-xs font-semibold text-slate-400">目前沒有排產圖稿</p>
+            <p class="text-[10px] text-slate-500">直接拖入 .ai 檔案或點擊「重設參考照片範本」體驗</p>
+          </div>
+        `;
+        return;
+      }
+
+      state.items.forEach((item) => {
+        const isSelected = state.selectedItemId && state.selectedItemId.startsWith(item.id);
+        const card = document.createElement('div');
+        card.className = `p-3 rounded-2xl border transition shadow-sm ${
+          isSelected 
+            ? 'bg-blue-950/60 border-blue-500 ring-1 ring-blue-500/40' 
+            : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
+        }`;
+
+        // Thumbnail display
+        const thumbHtml = item.imgUrl
+          ? `<img src="${item.imgUrl}" class="w-10 h-10 object-contain rounded-lg bg-slate-950 border border-slate-800 shrink-0">`
+          : `<div class="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-xs text-white shrink-0 shadow-inner" style="background-color: ${item.color}">${item.label}</div>`;
+
+        card.innerHTML = `
+          <div class="flex items-start space-x-2.5 mb-2">
+            ${thumbHtml}
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-slate-100 text-xs truncate" title="${item.name}">${item.name}</span>
+                <select class="select-item-shape bg-slate-950 border border-slate-700/80 rounded px-1.5 py-0.5 text-[9px] text-slate-200 font-semibold focus:outline-none" data-id="${item.id}" title="自訂此貼紙的切割刀線形狀">
+                  <option value="rect" ${item.shape === 'rect' ? 'selected' : ''}>矩形直角</option>
+                  <option value="round" ${item.shape === 'round' ? 'selected' : ''}>圓角4mm</option>
+                  <option value="oval" ${item.shape === 'oval' ? 'selected' : ''}>橢圓形</option>
+                  <option value="circle" ${item.shape === 'circle' ? 'selected' : ''}>圓形</option>
+                  <option value="contour" ${item.shape === 'contour' ? 'selected' : ''}>異形輪廓</option>
+                </select>
+              </div>
+              <div class="flex items-center justify-between mt-0.5">
+                <span class="mono text-[11px] text-blue-400 font-semibold">${item.width} × ${item.height} mm</span>
+                <div class="flex items-center space-x-1 text-[9px]">
+                  ${item.hasWhite ? '<span class="px-1 bg-slate-800 text-slate-300 rounded font-medium">白</span>' : ''}
+                  ${item.hasGloss ? '<span class="px-1 bg-amber-950 text-amber-400 rounded font-medium">油</span>' : ''}
+                  <span class="px-1 bg-fuchsia-950 text-fuchsia-400 rounded font-medium" title="符合 DIECUT/OUTCUT 或專色≤1px">切(DIECUT)</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Rotation Permission -->
+          <div class="flex items-center justify-between text-[11px] bg-slate-950/70 px-2 py-1.5 rounded-xl border border-slate-800/80 mb-2">
+            <span class="text-slate-400 text-[10px]">旋轉:</span>
+            <select class="select-rot-mode bg-transparent text-slate-200 text-[10px] font-semibold focus:outline-none" data-id="${item.id}">
+              <option value="auto" ${item.rotMode === 'auto' ? 'selected' : ''}>自動 (0°/90°)</option>
+              <option value="lock0" ${item.rotMode === 'lock0' ? 'selected' : ''}>鎖定 0° (禁轉)</option>
+              <option value="lock90" ${item.rotMode === 'lock90' ? 'selected' : ''}>強制 90°</option>
+            </select>
+          </div>
+
+          <!-- Quantity Stepper (iOS Stepper Style) -->
+          <div class="flex items-center justify-between pt-1.5 border-t border-slate-800/60">
+            <span class="text-slate-400 text-[11px] font-medium">需求數量:</span>
+            <div class="flex items-center space-x-1.5">
+              <button class="btn-qty-minus w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center font-bold text-sm shadow transition">-</button>
+              <input type="number" class="input-qty w-12 bg-slate-950 border border-slate-700 rounded-lg text-center text-slate-100 mono text-xs font-bold py-1" value="${item.qty}" min="1" max="1000" data-id="${item.id}">
+              <button class="btn-qty-plus w-6 h-6 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 flex items-center justify-center font-bold text-sm shadow transition">+</button>
+              <button class="btn-item-del ml-1 text-slate-500 hover:text-rose-400 p-1" data-id="${item.id}" title="刪除此圖稿">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+              </button>
+            </div>
+          </div>
+        `;
+
+        card.querySelector('.select-item-shape').addEventListener('change', (e) => {
+          item.shape = e.target.value;
+          renderSVGCanvas();
+          showToast(`已將「${item.name}」刀線形狀設為 ${e.target.options[e.target.selectedIndex].text}`);
+        });
+
+        card.querySelector('.select-rot-mode').addEventListener('change', (e) => {
+          item.rotMode = e.target.value;
+          runNestingAlgorithm();
+          showToast(`已更新「${item.name}」旋轉規則`);
+        });
+
+        card.querySelector('.btn-qty-minus').addEventListener('click', () => {
+          if (item.qty > 1) {
+            item.qty--;
+            runNestingAlgorithm();
+          }
+        });
+        card.querySelector('.btn-qty-plus').addEventListener('click', () => {
+          item.qty++;
+          runNestingAlgorithm();
+        });
+        const qtyInput = card.querySelector('.input-qty');
+        qtyInput.addEventListener('change', (e) => {
+          const val = parseInt(e.target.value, 10);
+          if (!isNaN(val) && val >= 1) {
+            item.qty = val;
+            runNestingAlgorithm();
+          } else {
+            e.target.value = item.qty;
+          }
+        });
+        card.querySelector('.btn-item-del').addEventListener('click', () => {
+          state.items = state.items.filter(i => i.id !== item.id);
+          runNestingAlgorithm();
+        });
+
+        container.appendChild(card);
+      });
+    }
+
+    function selectItem(item) {
+      state.selectedItemId = item.uniqueId;
+      document.getElementById('canvasSelectedItemText').textContent = item.name;
+      document.getElementById('inspectItemName').textContent = item.name;
+      document.getElementById('inspectItemSize').textContent = `${item.w} × ${item.h} mm (佔位: ${item.placedW}×${item.placedH})`;
+      document.getElementById('inspectItemRot').textContent = item.rotated ? '↷ 90° 順時針旋轉' : '0° 原向正放';
+      document.getElementById('inspectItemRotReason').textContent = item.rotReason || '自動空間匹配';
+
+      renderSVGCanvas();
+      renderItemList();
+    }
+
+    function fitCanvasToViewport() {
+      const container = document.getElementById('viewportContainer');
+      const wrapper = document.getElementById('boardCanvasWrapper');
+      const bedW = state.bed.width;
+      const bedH = state.bed.height;
+      const artboardGap = state.bed.artboardSpacing;
+
+      const totalRenderW = state.view.mode === 'single'
+        ? bedW
+        : (state.boards.length * bedW) + ((state.boards.length - 1) * artboardGap);
+      const totalRenderH = bedH;
+
+      const contW = container.clientWidth - 48;
+      const contH = container.clientHeight - 48;
+
+      if (contW <= 0 || contH <= 0 || totalRenderW <= 0) return;
+
+      const scaleW = contW / totalRenderW;
+      const scaleH = contH / totalRenderH;
+      const fitScale = Math.min(scaleW, scaleH) * 0.94;
+
+      state.view.scale = fitScale;
+      state.view.panX = 0;
+      state.view.panY = 0;
+
+      wrapper.style.width = `${totalRenderW}px`;
+      wrapper.style.height = `${totalRenderH}px`;
+      applyTransform();
+    }
+
+    function applyTransform() {
+      const wrapper = document.getElementById('boardCanvasWrapper');
+      wrapper.style.transform = `translate(${state.view.panX}px, ${state.view.panY}px) scale(${state.view.scale})`;
+      document.getElementById('zoomLabel').textContent = `${Math.round(state.view.scale * 100)}%`;
+    }
+
+    // --- Illustrator ExtendScript (.jsx) Generator ---
+        // --- Direct Web-to-Print PDF Export (Caldera Style - Zero Illustrator Needed) ---
+    async function directExportPrintReadyPDF() {
+      if (state.boards.length === 0 || state.items.length === 0) {
+        showToast('目前沒有可排版的板面，請先加入圖稿！');
+        return;
+      }
+
+      if (!window.jspdf || !window.jspdf.jsPDF) {
+        showToast('PDF 引擎加載中，請稍候重試...');
+        return;
+      }
+
+      showToast('正在於瀏覽器直接生成 1:1 生產 PDF...');
+
+      const bedW = state.bed.width;
+      const bedH = state.bed.height;
+      const orientation = bedW >= bedH ? 'landscape' : 'portrait';
+
+      const doc = new window.jspdf.jsPDF({
+        orientation: orientation,
+        unit: 'mm',
+        format: [bedW, bedH],
+        compress: true
+      });
+
+      for (let b = 0; b < state.boards.length; b++) {
+        const board = state.boards[b];
+        if (b > 0) {
+          doc.addPage([bedW, bedH], orientation);
+        }
+
+        // Draw Vacuum / Board Border
+        doc.setDrawColor(30, 41, 59);
+        doc.setLineWidth(0.5);
+        doc.rect(0, 0, bedW, bedH);
+
+        // Draw Margin guideline
+        doc.setDrawColor(99, 102, 241);
+        doc.setLineDashPattern([2, 2], 0);
+        doc.rect(state.bed.margin, state.bed.margin, bedW - state.bed.margin * 2, bedH - state.bed.margin * 2);
+        doc.setLineDashPattern([], 0); // reset dash
+
+        // Draw Job Header Info
+        doc.setTextColor(100, 116, 139);
+        doc.setFontSize(8);
+        doc.text(`JOB: MC-MOTO | BOARD: ${board.boardIndex}/${state.boards.length} | SIZE: ${bedW}x${bedH}mm | MARGIN: ${state.bed.margin}mm | GAP: ${state.bed.spacing}mm`, state.bed.margin, state.bed.margin - 3);
+
+        // Draw Corner Registration Marks
+        if (state.options.addRegistrationMarks) {
+          const marks = [
+            [state.bed.margin / 2, state.bed.margin / 2],
+            [bedW - state.bed.margin / 2, state.bed.margin / 2],
+            [state.bed.margin / 2, bedH - state.bed.margin / 2],
+            [bedW - state.bed.margin / 2, bedH - state.bed.margin / 2]
+          ];
+          marks.forEach(([mx, my]) => {
+            doc.setDrawColor(0, 0, 0);
+            doc.setLineWidth(0.3);
+            doc.circle(mx, my, 1.5, 'S');
+            doc.line(mx - 3, my, mx + 3, my);
+            doc.line(mx, my - 3, mx, my + 3);
+          });
+        }
+
+        // Draw Nested Items directly onto 1:1 PDF!
+        for (let i = 0; i < board.items.length; i++) {
+          const it = board.items[i];
+
+          // 1. Draw Graphic Image or Solid Fill
+          if (it.imgUrl && it.imgUrl.startsWith('data:image')) {
+            try {
+              doc.addImage(it.imgUrl, 'PNG', it.x, it.y, it.placedW, it.placedH, undefined, 'FAST');
+            } catch (imgErr) {
+              doc.setFillColor(30, 41, 59);
+              doc.roundedRect(it.x, it.y, it.placedW, it.placedH, 2, 2, 'F');
+            }
+          } else {
+            doc.setFillColor(30, 41, 59);
+            doc.roundedRect(it.x, it.y, it.placedW, it.placedH, 2, 2, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(16);
+            doc.text(it.label, it.x + it.placedW / 2, it.y + it.placedH / 2 + 2, { align: 'center' });
+          }
+
+          // 2. Draw CutContour Magenta Path (0.5pt = 0.176mm)
+          const cutOffset = state.cutSettings.offsetMm || 0;
+          const pdfCutX = it.x - cutOffset;
+          const pdfCutY = it.y - cutOffset;
+          const pdfCutW = it.placedW + cutOffset * 2;
+          const pdfCutH = it.placedH + cutOffset * 2;
+
+          doc.setDrawColor(236, 72, 153); // Spot CutContour Magenta
+          doc.setLineWidth(0.35); // 1pt clean cut line
+          if (it.shape === 'oval' || it.shape === 'circle') {
+            doc.ellipse(pdfCutX + pdfCutW / 2, pdfCutY + pdfCutH / 2, pdfCutW / 2, pdfCutH / 2, 'S');
+          } else if (it.shape === 'round') {
+            doc.roundedRect(pdfCutX, pdfCutY, pdfCutW, pdfCutH, 4, 4, 'S');
+          } else {
+            doc.rect(pdfCutX, pdfCutY, pdfCutW, pdfCutH, 'S');
+          }
+
+          // Item dimension label
+          doc.setTextColor(148, 163, 184);
+          doc.setFontSize(7);
+          doc.text(`${it.w}x${it.h}mm`, it.x + it.placedW / 2, it.y + it.placedH - 2, { align: 'center' });
+        }
+      }
+
+      // Trigger Direct Browser Download
+      doc.save(`MC_Motoparts_UV_Print_Ready_${bedW}x${bedH}mm_All_${state.boards.length}_Boards.pdf`);
+      showToast(`已成功於網頁直出生產 PDF！共 ${state.boards.length} 塊板`);
+    }
+
+    function generateIllustratorJSX() {
+      if (state.boards.length === 0) {
+        showToast('目前沒有可排版的板面！');
+        return;
+      }
+
+      const bedW = state.bed.width;
+      const bedH = state.bed.height;
+      const artboardGap = state.bed.artboardSpacing;
+      const totalBoards = state.boards.length;
+
+      let jsx = `/**
+ * PrimeNester Auto-Imposition Multi-Artboard Script for Adobe Illustrator
+ * Project: UV Flatbed Imposition & Multi-Board Layout
+ * Bed Dimensions: ${bedW}mm (W) x ${bedH}mm (H)
+ * Artboard Spacing: ${artboardGap}mm | Margin: ${state.bed.margin}mm | Gap: ${state.bed.spacing}mm
+ * Total Boards: ${totalBoards}
+ */
+
+#target illustrator
+
+/**
+ * MC Motoparts 自動切線識別標準 (Two Rules):
+ * 1. 圖層名稱: OUTCUT 或 DIECUT
+ * 2. 專色區分: 只要是 Spot Color (除了 WHITE 之外) 且線寬在 1px (1pt) 或以下
+ */
+function isItemCutContour(item) {
+    if (!item) return false;
+    try {
+        if (item.layer && item.layer.name.match(/^(diecut|outcut|cutcontour)$/i)) {
+            return true;
+        }
+        if (item.stroked && item.strokeWidth <= 1.0) {
+            if (item.strokeColor && item.strokeColor.typename === "SpotColor") {
+                var sName = item.strokeColor.spot.name.toUpperCase();
+                if (sName.indexOf("WHITE") === -1) {
+                    return true;
+                }
+            }
+        }
+    } catch(e) {}
+    return false;
+}
+
+function runMultiArtboardImposition() {
+    var ptFactor = 2.83464567; // 1 mm = 2.83464567 pt
+    var bedWPt = ${bedW} * ptFactor;
+    var bedHPt = ${bedH} * ptFactor;
+    var artboardGapPt = ${artboardGap} * ptFactor;
+
+    // Universal safe document creation (Compatible with all Adobe Illustrator versions)
+    var doc;
+    try {
+        doc = app.documents.add(DocumentColorSpace.CMYK, bedWPt, bedHPt);
+    } catch (e1) {
+        try {
+            var docPreset = new DocumentPreset();
+            docPreset.title = "UV_Flatbed_All_${totalBoards}_Boards_${bedW}x${bedH}mm";
+            docPreset.width = bedWPt;
+            docPreset.height = bedHPt;
+            doc = app.documents.addDocument(DocumentColorSpace.CMYK, docPreset);
+        } catch (e2) {
+            doc = app.activeDocument;
+        }
+    }
+
+    function getOrCreateLayer(name) {
+        try {
+            return doc.layers.getByName(name);
+        } catch (e) {
+            var l = doc.layers.add();
+            l.name = name;
+            return l;
+        }
+    }
+
+    // MC Motoparts 切線方法 1: 圖層名稱 (DIECUT 或 OUTCUT)
+    var cutLayerName = "${state.cutSettings.layerName || 'DIECUT'}";
+    var cutLayer = getOrCreateLayer(cutLayerName);
+    var glossLayer = getOrCreateLayer("Varnish_Gloss");
+    var whiteLayer = getOrCreateLayer("White_Ink");
+    var cmykLayer = getOrCreateLayer("CMYK_Print");
+
+    function getOrCreateSpotColor(name, c, m, y, k) {
+        try {
+            return doc.swatches.getByName(name).color;
+        } catch (e) {
+            var spot = doc.spots.add();
+            spot.name = name;
+            spot.colorType = ColorModel.SPOT;
+            var cmyk = new CMYKColor();
+            cmyk.cyan = c; cmyk.magenta = m; cmyk.yellow = y; cmyk.black = k;
+            spot.color = cmyk;
+            var spotColor = new SpotColor();
+            spotColor.spot = spot;
+            spotColor.tint = 100;
+            return spotColor;
+        }
+    }
+
+    var cutColor = getOrCreateSpotColor("CutContour", 0, 100, 0, 0);
+    var whiteColor = getOrCreateSpotColor("RDG_WHITE", 100, 0, 0, 0);
+    var glossColor = getOrCreateSpotColor("RDG_GLOSS", 0, 80, 100, 0);
+
+    var boardsData = ${JSON.stringify(state.boards.map(b => ({
+      boardIndex: b.boardIndex,
+      items: b.items.map(i => ({
+        name: i.name,
+        x: i.x,
+        y: i.y,
+        w: i.placedW,
+        h: i.placedH,
+        shape: i.shape,
+        rotated: i.rotated,
+        hasWhite: i.hasWhite,
+        hasGloss: i.hasGloss,
+        label: i.label
+      }))
+    })))};
+
+    for (var b = 0; b < boardsData.length; b++) {
+        var board = boardsData[b];
+        var boardLeftPt = b * (bedWPt + artboardGapPt);
+        var boardTopPt = 0;
+        var boardRightPt = boardLeftPt + bedWPt;
+        var boardBottomPt = -bedHPt;
+
+        if (b > 0) {
+            doc.artboards.add([boardLeftPt, boardTopPt, boardRightPt, boardBottomPt]);
+        } else {
+            doc.artboards[0].artboardRect = [boardLeftPt, boardTopPt, boardRightPt, boardBottomPt];
+        }
+        doc.artboards[b].name = "Board_" + (b + 1) + "_${bedW}x${bedH}mm";
+
+        for (var i = 0; i < board.items.length; i++) {
+            var it = board.items[i];
+            var xPt = boardLeftPt + (it.x * ptFactor);
+            var yPt = -(it.y * ptFactor);
+            var wPt = it.w * ptFactor;
+            var hPt = it.h * ptFactor;
+
+            // Helper to draw shape (rectangle, ellipse for oval/circle, or rounded for contour)
+            function drawPath(targetLayer) {
+                if (it.shape === 'oval' || it.shape === 'circle') {
+                    return targetLayer.pathItems.ellipse(yPt, xPt, wPt, hPt);
+                } else if (it.shape === 'contour') {
+                    return targetLayer.pathItems.roundedRectangle(yPt, xPt, wPt, hPt, 18 * ptFactor, 18 * ptFactor);
+                } else {
+                    return targetLayer.pathItems.roundedRectangle(yPt, xPt, wPt, hPt, 4 * ptFactor, 4 * ptFactor);
+                }
+            }
+
+            // 1. CMYK
+            var cmykItem = drawPath(cmykLayer);
+            var baseC = new CMYKColor();
+            baseC.cyan = 10; baseC.magenta = 10; baseC.yellow = 10; baseC.black = 90;
+            cmykItem.fillColor = baseC;
+            cmykItem.stroked = false;
+
+            // 2. White Ink
+            if (it.hasWhite) {
+                var whiteItem = drawPath(whiteLayer);
+                whiteItem.fillColor = whiteColor;
+                whiteItem.stroked = false;
+            }
+
+            // 3. Gloss / Varnish
+            if (it.hasGloss) {
+                var glossItem = drawPath(glossLayer);
+                glossItem.fillColor = glossColor;
+                glossItem.stroked = false;
+            }
+
+            // 4. 切線 (CutContour / DIECUT / OUTCUT)
+            // 嚴格符合 MC Motoparts 規範: 線寬 0.5pt (<= 1px / 1pt)，非 WHITE 專色
+            var cutItem = drawPath(cutLayer);
+            cutItem.filled = false;
+            cutItem.stroked = true;
+            cutItem.strokeWidth = 0.5; // 0.5pt stroke (嚴格在 1px / 1pt 或以下)
+            cutItem.strokeColor = cutColor; // 專色 CutContour (非 WHITE 專色)
+        }
+    }
+}
+
+runMultiArtboardImposition();
+`;
+
+      const blob = new Blob([jsx], { type: 'text/javascript' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `PrimeNester_All_${totalBoards}_Boards_Gap${artboardGap}mm.jsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showToast(`已下載 AI 腳本！包含 ${totalBoards} 個畫板並排`);
+    }
+
+    function exportProductionSummary() {
+      const summary = {
+        title: "MC Motoparts UV Flatbed Production Plan",
+        exportedAt: new Date().toISOString(),
+        bedConfig: {
+          width_mm: state.bed.width,
+          height_mm: state.bed.height,
+          margin_mm: state.bed.margin,
+          spacing_mm: state.bed.spacing,
+          artboardSpacing_mm: state.bed.artboardSpacing
+        },
+        totalBoards: state.boards.length,
+        boards: state.boards.map(b => ({
+          boardNumber: b.boardIndex,
+          yieldPercentage: b.yieldPct + '%',
+          itemsPlacedCount: b.items.length,
+          items: b.items.map(i => ({
+            name: i.name,
+            x_mm: i.x,
+            y_mm: i.y,
+            width_mm: i.placedW,
+            height_mm: i.placedH,
+            rotated90deg: i.rotated,
+            rotMode: i.rotMode,
+            shape: i.shape,
+            coatings: {
+              whiteInk: i.hasWhite,
+              varnishGloss: i.hasGloss,
+              cutContour: true
+            }
+          }))
+        }))
+      };
+
+      const blob = new Blob([JSON.stringify(summary, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `MC_Motoparts_Nesting_Plan_${new Date().toISOString().slice(0,10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showToast('已匯出生產料表 JSON 檔案！');
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toastNotification');
+      const msgEl = document.getElementById('toastMessage');
+      msgEl.textContent = msg;
+      toast.classList.remove('-translate-y-20', 'opacity-0');
+      setTimeout(() => {
+        toast.classList.add('-translate-y-20', 'opacity-0');
+      }, 2500);
+    }
+
+    // --- Adobe AI (.ai) & Image File Parser Engine ---
+    // Configure PDF.js worker
+    if (window.pdfjsLib) {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+
+    // Helper: Extract PDF stream from .ai file if it contains %PDF-
+    function extractPdfFromAiBuffer(arrayBuffer) {
+      const bytes = new Uint8Array(arrayBuffer);
+      // Search for %PDF- (0x25, 0x50, 0x44, 0x46, 0x2D)
+      for (let i = 0; i < Math.min(bytes.length - 5, 1024 * 512); i++) {
+        if (bytes[i] === 0x25 && bytes[i+1] === 0x50 && bytes[i+2] === 0x44 && bytes[i+3] === 0x46 && bytes[i+4] === 0x2D) {
+          return arrayBuffer.slice(i);
+        }
+      }
+      return arrayBuffer;
+    }
+
+    // Render page 1 of .ai / .pdf to high-res canvas DataURL and extract mm dimensions
+    async function parseAiOrPdfFile(file) {
+      const buffer = await file.arrayBuffer();
+      const pdfBuffer = extractPdfFromAiBuffer(buffer);
+
+      if (!window.pdfjsLib) {
+        throw new Error('PDF.js not loaded');
+      }
+
+      const loadingTask = window.pdfjsLib.getDocument({ data: pdfBuffer });
+      const pdfDoc = await loadingTask.promise;
+      const page = await pdfDoc.getPage(1);
+      const viewport = page.getViewport({ scale: 1.0 });
+
+      // In PDF/AI, 1 pt = 0.352778 mm (25.4 mm / 72 pt)
+      const ptToMm = 0.352778;
+      const widthMm = Math.round(viewport.width * ptToMm);
+      const heightMm = Math.round(viewport.height * ptToMm);
+
+      // Render thumbnail at 1.5x scale
+      const renderViewport = page.getViewport({ scale: 1.5 });
+      const canvas = document.createElement('canvas');
+      canvas.width = renderViewport.width;
+      canvas.height = renderViewport.height;
+      const ctx = canvas.getContext('2d');
+
+      await page.render({ canvasContext: ctx, viewport: renderViewport }).promise;
+      const dataUrl = canvas.toDataURL('image/png');
+
+      return {
+        dataUrl: dataUrl,
+        widthMm: Math.max(10, widthMm),
+        heightMm: Math.max(10, heightMm)
+      };
+    }
+
+    async function handleImageFile(file) {
+      const isAiOrPdf = /\.(ai|pdf|eps)$/i.test(file.name);
+      const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+      document.getElementById('modalItemName').value = nameWithoutExt;
+      document.getElementById('modalFileNameLabel').textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+
+      if (isAiOrPdf) {
+        try {
+          showToast(`正在讀取 Adobe AI 檔案: ${file.name}...`);
+          const res = await parseAiOrPdfFile(file);
+          state.tempUploadedImg = res.dataUrl;
+
+          document.getElementById('modalItemWidth').value = res.widthMm;
+          document.getElementById('modalItemHeight').value = res.heightMm;
+          document.getElementById('modalImgPreviewContainer').innerHTML = 
+            `<img src="${res.dataUrl}" class="w-full h-full object-contain">`;
+          
+          showToast(`已成功讀取 AI 畫板尺寸: ${res.widthMm} × ${res.heightMm} mm`);
+          return;
+        } catch (err) {
+          console.warn('AI PDF parse failed, falling back to vector badge:', err);
+          // Fallback: create vector badge preview
+          const fallbackDataUrl = createAiPlaceholderThumbnail(nameWithoutExt);
+          state.tempUploadedImg = fallbackDataUrl;
+          document.getElementById('modalItemWidth').value = 200;
+          document.getElementById('modalItemHeight').value = 150;
+          document.getElementById('modalImgPreviewContainer').innerHTML = 
+            `<img src="${fallbackDataUrl}" class="w-full h-full object-contain">`;
+          showToast(`已讀取 AI 檔名，請確認生產尺寸 (mm)`);
+          return;
+        }
+      }
+
+      // Standard Image file (PNG / JPG / SVG)
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target.result;
+        state.tempUploadedImg = dataUrl;
+
+        const img = new Image();
+        img.onload = () => {
+          const aspect = img.naturalWidth / img.naturalHeight;
+          const defaultW = 200;
+          const defaultH = Math.round(defaultW / aspect);
+          document.getElementById('modalItemWidth').value = defaultW;
+          document.getElementById('modalItemHeight').value = defaultH;
+
+          document.getElementById('modalImgPreviewContainer').innerHTML = 
+            `<img src="${dataUrl}" class="w-full h-full object-contain">`;
+        };
+        img.src = dataUrl;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function createAiPlaceholderThumbnail(name) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 200;
+      canvas.height = 150;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ff7c00'; // Adobe Illustrator Orange
+      ctx.fillRect(0, 0, 200, 150);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 36px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Ai', 100, 70);
+      ctx.font = '14px sans-serif';
+      ctx.fillText(name.slice(0, 14), 100, 110);
+      return canvas.toDataURL('image/png');
+    }
+
+    async function handleBatchFiles(files) {
+      if (!files || files.length === 0) return;
+      showToast(`正在處理 ${files.length} 個圖檔...`);
+      let count = 0;
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const isAiOrPdf = /\.(ai|pdf|eps)$/i.test(file.name);
+        const name = file.name.replace(/\.[^/.]+$/, "");
+
+        try {
+          if (isAiOrPdf) {
+            let res;
+            try {
+              res = await parseAiOrPdfFile(file);
+            } catch (e) {
+              res = {
+                dataUrl: createAiPlaceholderThumbnail(name),
+                widthMm: 200,
+                heightMm: 150
+              };
+            }
+
+            state.items.unshift({
+              id: `item_uploaded_${Date.now()}_${i}`,
+              name: `${name}.ai`,
+              width: res.widthMm,
+              height: res.heightMm,
+              shape: 'rect',
+              qty: 2,
+              rotMode: 'auto',
+              hasWhite: true,
+              hasGloss: true,
+              color: '#ea580c',
+              label: 'Ai',
+              imgUrl: res.dataUrl
+            });
+            count++;
+          } else {
+            // Standard image
+            const dataUrl = await new Promise((resolve) => {
+              const r = new FileReader();
+              r.onload = (e) => resolve(e.target.result);
+              r.readAsDataURL(file);
+            });
+
+            const dims = await new Promise((resolve) => {
+              const img = new Image();
+              img.onload = () => {
+                const aspect = img.naturalWidth / img.naturalHeight;
+                const w = 180;
+                resolve({ w, h: Math.round(w / aspect) });
+              };
+              img.src = dataUrl;
+            });
+
+            state.items.unshift({
+              id: `item_uploaded_${Date.now()}_${i}`,
+              name: name,
+              width: dims.w,
+              height: dims.h,
+              shape: 'rect',
+              qty: 2,
+              rotMode: 'auto',
+              hasWhite: true,
+              hasGloss: true,
+              color: '#1e293b',
+              label: name.slice(0, 4),
+              imgUrl: dataUrl
+            });
+            count++;
+          }
+        } catch (err) {
+          console.error('Error processing file:', file.name, err);
+        }
+      }
+
+      runNestingAlgorithm();
+      showToast(`已成功匯入 ${count} 個圖稿（包含 Adobe AI / 圖片）！`);
+    }
+
+    // --- Event Listeners Initialization ---
+    function initListeners() {
+      // Sidebar Toggles
+      const leftSidebar = document.getElementById('leftSidebarPanel');
+      const rightSidebar = document.getElementById('rightSidebarPanel');
+      const btnToggleLeft = document.getElementById('btnToggleLeftSidebar');
+      const btnToggleRight = document.getElementById('btnToggleRightSidebar');
+
+      let leftOpen = true;
+      let rightOpen = true;
+
+      // Auto-collapse left sidebar on narrower screens so canvas is always spacious
+      if (window.innerWidth < 1180) {
+        leftOpen = false;
+        leftSidebar.classList.add('hidden');
+        btnToggleLeft.classList.remove('bg-slate-800');
+        btnToggleLeft.classList.add('opacity-70');
+      }
+
+      btnToggleLeft.addEventListener('click', () => {
+        leftOpen = !leftOpen;
+        if (leftOpen) {
+          leftSidebar.classList.remove('hidden');
+          btnToggleLeft.classList.add('bg-slate-800');
+          btnToggleLeft.classList.remove('opacity-70');
+        } else {
+          leftSidebar.classList.add('hidden');
+          btnToggleLeft.classList.remove('bg-slate-800');
+          btnToggleLeft.classList.add('opacity-70');
+        }
+        setTimeout(fitCanvasToViewport, 220);
+      });
+
+      btnToggleRight.addEventListener('click', () => {
+        rightOpen = !rightOpen;
+        if (rightOpen) {
+          rightSidebar.classList.remove('hidden');
+          btnToggleRight.classList.add('bg-slate-800');
+          btnToggleRight.classList.remove('opacity-70');
+        } else {
+          rightSidebar.classList.add('hidden');
+          btnToggleRight.classList.remove('bg-slate-800');
+          btnToggleRight.classList.add('opacity-70');
+        }
+        setTimeout(fitCanvasToViewport, 220);
+      });
+
+      // Bed Inputs
+      document.getElementById('bedWidth').addEventListener('change', (e) => {
+        state.bed.width = Math.max(100, parseInt(e.target.value, 10) || 700);
+        runNestingAlgorithm();
+      });
+      document.getElementById('bedHeight').addEventListener('change', (e) => {
+        state.bed.height = Math.max(100, parseInt(e.target.value, 10) || 1200);
+        runNestingAlgorithm();
+      });
+      document.getElementById('bedMargin').addEventListener('change', (e) => {
+        state.bed.margin = Math.max(0, parseInt(e.target.value, 10) || 15);
+        runNestingAlgorithm();
+      });
+      document.getElementById('itemSpacing').addEventListener('change', (e) => {
+        state.bed.spacing = Math.max(1, parseInt(e.target.value, 10) || 4);
+        runNestingAlgorithm();
+      });
+      document.getElementById('artboardSpacing').addEventListener('change', (e) => {
+        state.bed.artboardSpacing = Math.max(10, parseInt(e.target.value, 10) || 80);
+        updateUI();
+        fitCanvasToViewport();
+      });
+
+      // View Mode Toggles
+      document.getElementById('btnViewSingle').addEventListener('click', () => {
+        state.view.mode = 'single';
+        document.getElementById('btnViewSingle').className = 'px-3 py-1 rounded-lg text-xs font-semibold bg-blue-600 text-white shadow transition';
+        document.getElementById('btnViewAll').className = 'px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 transition';
+        document.getElementById('boardNavControls').classList.remove('hidden');
+        renderSVGCanvas();
+        fitCanvasToViewport();
+      });
+
+      document.getElementById('btnViewAll').addEventListener('click', () => {
+        state.view.mode = 'all';
+        document.getElementById('btnViewAll').className = 'px-3 py-1 rounded-lg text-xs font-semibold bg-blue-600 text-white shadow transition';
+        document.getElementById('btnViewSingle').className = 'px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 transition';
+        document.getElementById('boardNavControls').classList.add('hidden');
+        renderSVGCanvas();
+        fitCanvasToViewport();
+      });
+
+      // Presets
+      document.getElementById('preset700x1200').addEventListener('click', () => {
+        state.bed.width = 700;
+        state.bed.height = 1200;
+        document.getElementById('bedWidth').value = 700;
+        document.getElementById('bedHeight').value = 1200;
+        runNestingAlgorithm();
+      });
+      document.getElementById('preset1200x1200').addEventListener('click', () => {
+        state.bed.width = 1200;
+        state.bed.height = 1200;
+        document.getElementById('bedWidth').value = 1200;
+        document.getElementById('bedHeight').value = 1200;
+        runNestingAlgorithm();
+      });
+      document.getElementById('preset1200x2400').addEventListener('click', () => {
+        state.bed.width = 1200;
+        state.bed.height = 2400;
+        document.getElementById('bedWidth').value = 1200;
+        document.getElementById('bedHeight').value = 2400;
+        runNestingAlgorithm();
+      });
+      document.getElementById('preset700x1000').addEventListener('click', () => {
+        state.bed.width = 700;
+        state.bed.height = 1000;
+        document.getElementById('bedWidth').value = 700;
+        document.getElementById('bedHeight').value = 1000;
+        runNestingAlgorithm();
+      });
+
+      // Rules Checkboxes
+      document.getElementById('optAllowRotate').addEventListener('change', (e) => {
+        state.options.allowRotate = e.target.checked;
+        runNestingAlgorithm();
+      });
+      document.getElementById('optAutoFillGaps').addEventListener('change', (e) => {
+        state.options.autoFillGaps = e.target.checked;
+        runNestingAlgorithm();
+      });
+      document.getElementById('optAddRegistrationMarks').addEventListener('change', (e) => {
+        state.options.addRegistrationMarks = e.target.checked;
+        renderSVGCanvas();
+      });
+      document.getElementById('optAddJobTag').addEventListener('change', (e) => {
+        state.options.addJobTag = e.target.checked;
+        renderSVGCanvas();
+      });
+
+      // Layer Toggles
+      const toggleBtn = (btnId, key) => {
+        document.getElementById(btnId).addEventListener('click', () => {
+          state.layersVisible[key] = !state.layersVisible[key];
+          const btn = document.getElementById(btnId);
+          if (state.layersVisible[key]) {
+            btn.classList.remove('opacity-30');
+          } else {
+            btn.classList.add('opacity-30');
+          }
+          renderSVGCanvas();
+        });
+      };
+      toggleBtn('toggleCMYK', 'cmyk');
+      toggleBtn('toggleWhite', 'white');
+      toggleBtn('toggleGloss', 'gloss');
+      toggleBtn('toggleCut', 'cut');
+
+      // Cut Inspect Mode Toggle (一鍵切換刀線透視)
+      const btnCutInspect = document.getElementById('btnCutInspectMode');
+      const lblCutInspect = document.getElementById('lblCutInspectText');
+      btnCutInspect.addEventListener('click', () => {
+        state.cutSettings.inspectMode = !state.cutSettings.inspectMode;
+        if (state.cutSettings.inspectMode) {
+          btnCutInspect.classList.remove('bg-slate-900', 'text-slate-300');
+          btnCutInspect.classList.add('bg-fuchsia-600', 'text-white', 'shadow-lg', 'shadow-fuchsia-600/30');
+          lblCutInspect.textContent = '退出透視 (看全彩)';
+          showToast('已進入「刀線透視檢視」模式：底圖已淡化，極度突顯切割刀線！');
+        } else {
+          btnCutInspect.classList.add('bg-slate-900', 'text-slate-300');
+          btnCutInspect.classList.remove('bg-fuchsia-600', 'text-white', 'shadow-lg', 'shadow-fuchsia-600/30');
+          lblCutInspect.textContent = '刀線透視檢視';
+          showToast('已恢復彩色圖稿檢視');
+        }
+        renderSVGCanvas();
+      });
+
+      // Cut Settings Popover
+      const btnToggleCutSettings = document.getElementById('btnToggleCutSettings');
+      const cutSettingsPopover = document.getElementById('cutSettingsPopover');
+      const btnCloseCutSettings = document.getElementById('btnCloseCutSettings');
+
+      btnToggleCutSettings.addEventListener('click', (e) => {
+        e.stopPropagation();
+        cutSettingsPopover.classList.toggle('hidden');
+      });
+      btnCloseCutSettings.addEventListener('click', () => {
+        cutSettingsPopover.classList.add('hidden');
+      });
+      document.addEventListener('click', (e) => {
+        if (!cutSettingsPopover.contains(e.target) && e.target !== btnToggleCutSettings && !btnToggleCutSettings.contains(e.target)) {
+          cutSettingsPopover.classList.add('hidden');
+        }
+      });
+
+      // Cut Color Buttons
+      document.querySelectorAll('.cut-color-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const color = btn.getAttribute('data-color');
+          state.cutSettings.color = color;
+          document.getElementById('cutSettingsColorDot').style.backgroundColor = color;
+          document.querySelectorAll('.cut-color-btn').forEach(b => {
+            b.classList.remove('border-fuchsia-500', 'bg-fuchsia-500/20');
+            b.classList.add('border-slate-800', 'bg-slate-950');
+          });
+          btn.classList.add('border-fuchsia-500', 'bg-fuchsia-500/20');
+          btn.classList.remove('border-slate-800', 'bg-slate-950');
+          renderSVGCanvas();
+          showToast('已更新刀線顯示顏色');
+        });
+      });
+
+      // Cut Width Buttons
+      document.querySelectorAll('.cut-width-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const width = parseFloat(btn.getAttribute('data-width'));
+          state.cutSettings.width = width;
+          document.querySelectorAll('.cut-width-btn').forEach(b => {
+            b.classList.remove('border-blue-500', 'bg-blue-500/20', 'text-blue-300', 'font-bold');
+            b.classList.add('border-slate-800', 'text-slate-400', 'font-semibold');
+          });
+          btn.classList.add('border-blue-500', 'bg-blue-500/20', 'text-blue-300', 'font-bold');
+          btn.classList.remove('border-slate-800', 'text-slate-400');
+          renderSVGCanvas();
+        });
+      });
+
+      // Cut Casing Checkbox
+      document.getElementById('optCutCasing').addEventListener('change', (e) => {
+        state.cutSettings.casing = e.target.checked;
+        renderSVGCanvas();
+      });
+
+      // Cut Dashed Checkbox
+      document.getElementById('optCutDashed').addEventListener('change', (e) => {
+        state.cutSettings.style = e.target.checked ? 'dashed' : 'solid';
+        renderSVGCanvas();
+      });
+
+      // Cut Offset Select
+      document.getElementById('selectCutOffset').addEventListener('change', (e) => {
+        state.cutSettings.offsetMm = parseFloat(e.target.value) || 0;
+        renderSVGCanvas();
+        showToast(`裁切外擴留白已設為 ${e.target.value} mm`);
+      });
+
+      // Cut Layer Name Select (DIECUT / OUTCUT / CutContour)
+      const selectCutLayerName = document.getElementById('selectCutLayerName');
+      if (selectCutLayerName) {
+        selectCutLayerName.addEventListener('change', (e) => {
+          state.cutSettings.layerName = e.target.value;
+          showToast(`AI 導出切線圖層已設定為「${e.target.value}」`);
+        });
+      }
+
+      // Top Actions
+      document.getElementById('btnRecalculate').addEventListener('click', () => {
+        runNestingAlgorithm();
+        showToast('已重新計算排版與最高利用率');
+      });
+      document.getElementById('btnExportJSX').addEventListener('click', generateIllustratorJSX);
+      document.getElementById('btnDirectExportPDF').addEventListener('click', directExportPrintReadyPDF);
+      document.getElementById('btnExportSummaryReport').addEventListener('click', exportProductionSummary);
+
+      // Board Navigation
+      document.getElementById('btnPrevBoard').addEventListener('click', () => {
+        if (state.view.currentBoardIndex > 0) {
+          state.view.currentBoardIndex--;
+          updateUI();
+          fitCanvasToViewport();
+        }
+      });
+      document.getElementById('btnNextBoard').addEventListener('click', () => {
+        if (state.view.currentBoardIndex < state.boards.length - 1) {
+          state.view.currentBoardIndex++;
+          updateUI();
+          fitCanvasToViewport();
+        }
+      });
+
+      // Zoom & Fit
+      document.getElementById('btnZoomIn').addEventListener('click', () => {
+        state.view.scale = Math.min(3, state.view.scale * 1.2);
+        applyTransform();
+      });
+      document.getElementById('btnZoomOut').addEventListener('click', () => {
+        state.view.scale = Math.max(0.1, state.view.scale / 1.2);
+        applyTransform();
+      });
+      document.getElementById('btnFitView').addEventListener('click', fitCanvasToViewport);
+
+      // Pan & Zoom
+      const container = document.getElementById('viewportContainer');
+      let isPanning = false;
+      let startX = 0;
+      let startY = 0;
+
+      container.addEventListener('mousedown', (e) => {
+        if (e.target.closest('g[data-item-id]')) return;
+        isPanning = true;
+        startX = e.clientX - state.view.panX;
+        startY = e.clientY - state.view.panY;
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isPanning) return;
+        state.view.panX = e.clientX - startX;
+        state.view.panY = e.clientY - startY;
+        applyTransform();
+      });
+
+      window.addEventListener('mouseup', () => {
+        isPanning = false;
+      });
+
+      container.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
+        state.view.scale = Math.max(0.05, Math.min(4, state.view.scale * zoomFactor));
+        applyTransform();
+      }, { passive: false });
+
+      // Add Item Modal
+      const modal = document.getElementById('addItemModal');
+      const openModal = () => {
+        state.tempUploadedImg = null;
+        document.getElementById('modalItemName').value = '';
+        document.getElementById('modalFileNameLabel').textContent = '支援 .ai、.pdf、.png、.jpg 檔案';
+        document.getElementById('modalImgPreviewContainer').innerHTML = '<span class="text-slate-600 text-[10px]">預覽</span>';
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.getElementById('modalItemName').focus();
+      };
+
+      document.getElementById('btnOpenAddModal').addEventListener('click', openModal);
+      document.getElementById('btnTopOpenAddModal').addEventListener('click', openModal);
+
+      const closeModal = () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      };
+      document.getElementById('btnCloseAddModal').addEventListener('click', closeModal);
+      document.getElementById('btnCancelAddModal').addEventListener('click', closeModal);
+
+      // Modal Single File Upload
+      document.getElementById('modalFileInput').addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          handleImageFile(e.target.files[0]);
+        }
+      });
+
+      // Right Sidebar Batch Files Upload & Drag/Drop
+      const batchInput = document.getElementById('batchFileInput');
+      batchInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          handleBatchFiles(e.target.files);
+        }
+      });
+
+      const dropZone = batchInput.closest('label');
+      if (dropZone) {
+        ['dragenter', 'dragover'].forEach(eventName => {
+          dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.add('border-blue-400', 'bg-blue-500/20');
+          });
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+          dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            dropZone.classList.remove('border-blue-400', 'bg-blue-500/20');
+          });
+        });
+        dropZone.addEventListener('drop', (e) => {
+          if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleBatchFiles(e.dataTransfer.files);
+          }
+        });
+      }
+
+      // Modal Confirm Add
+      document.getElementById('btnConfirmAddItem').addEventListener('click', () => {
+        const name = document.getElementById('modalItemName').value.trim() || '自訂貼紙稿件';
+        const w = parseInt(document.getElementById('modalItemWidth').value, 10) || 100;
+        const h = parseInt(document.getElementById('modalItemHeight').value, 10) || 100;
+        const shape = document.getElementById('modalItemShape').value;
+        const qty = parseInt(document.getElementById('modalItemQty').value, 10) || 1;
+        const rotMode = document.getElementById('modalItemRotMode').value;
+        const hasWhite = document.getElementById('modalHasWhite').checked;
+        const hasGloss = document.getElementById('modalHasGloss').checked;
+
+        const newItem = {
+          id: `item_${Date.now()}`,
+          name: name,
+          width: w,
+          height: h,
+          shape: shape,
+          qty: qty,
+          rotMode: rotMode,
+          hasWhite: hasWhite,
+          hasGloss: hasGloss,
+          color: shape === 'oval' || shape === 'circle' ? '#ffffff' : '#1e293b',
+          label: name.slice(0, 4),
+          imgUrl: state.tempUploadedImg
+        };
+
+        state.items.unshift(newItem);
+        closeModal();
+        runNestingAlgorithm();
+        showToast(`已成功加入圖稿: ${name}`);
+      });
+
+      // Presets & Clear
+      document.getElementById('btnLoadRacingPreset').addEventListener('click', () => {
+        state.items = [
+          { id: 'item_1', name: '11 THE DRINK 門板', width: 320, height: 210, shape: 'rect', qty: 2, rotMode: 'auto', hasWhite: true, hasGloss: true, color: '#1e293b', label: '11', imgUrl: null },
+          { id: 'item_2', name: '916 DNA 號碼牌', width: 300, height: 210, shape: 'rect', qty: 2, rotMode: 'auto', hasWhite: true, hasGloss: true, color: '#0f172a', label: '916', imgUrl: null },
+          { id: 'item_3', name: '533 D. CARRION 牌', width: 310, height: 200, shape: 'rect', qty: 1, rotMode: 'lock0', hasWhite: true, hasGloss: true, color: '#1e293b', label: '533', imgUrl: null },
+          { id: 'item_4', name: '83 橢圓賽車號碼', width: 280, height: 180, shape: 'oval', qty: 2, rotMode: 'auto', hasWhite: true, hasGloss: true, color: '#ffffff', label: '83', imgUrl: null },
+          { id: 'item_5', name: '38 橢圓號碼牌', width: 260, height: 170, shape: 'oval', qty: 1, rotMode: 'auto', hasWhite: true, hasGloss: false, color: '#ffffff', label: '38', imgUrl: null },
+          { id: 'item_6', name: '14 橢圓號碼牌', width: 220, height: 150, shape: 'oval', qty: 1, rotMode: 'auto', hasWhite: true, hasGloss: true, color: '#ffffff', label: '14', imgUrl: null },
+          { id: 'item_7', name: '500 圓形號碼標籤', width: 180, height: 180, shape: 'circle', qty: 1, rotMode: 'auto', hasWhite: true, hasGloss: true, color: '#ffffff', label: '500', imgUrl: null },
+          { id: 'item_8', name: '34 橢圓頭盔標', width: 150, height: 100, shape: 'oval', qty: 2, rotMode: 'auto', hasWhite: true, hasGloss: true, color: '#ffffff', label: '34', imgUrl: null },
+          { id: 'item_9', name: '33 圓形輪轂貼', width: 110, height: 110, shape: 'circle', qty: 4, rotMode: 'auto', hasWhite: true, hasGloss: true, color: '#ffffff', label: '33', imgUrl: null },
+          { id: 'item_10', name: '藍底紅心徽章組 (32粒)', width: 52, height: 52, shape: 'circle', qty: 32, rotMode: 'auto', hasWhite: true, hasGloss: true, color: '#1d4ed8', label: 'B', imgUrl: null },
+          { id: 'item_11', name: 'SS 贊助商標誌貼', width: 180, height: 80, shape: 'contour', qty: 2, rotMode: 'lock0', hasWhite: true, hasGloss: true, color: '#334155', label: 'SS', imgUrl: null },
+          { id: 'item_12', name: 'JAM ROCK 寫真貼', width: 190, height: 130, shape: 'rect', qty: 2, rotMode: 'lock0', hasWhite: true, hasGloss: true, color: '#ea580c', label: 'CRUISE', imgUrl: null }
+        ];
+        runNestingAlgorithm();
+        showToast('已載入賽車貼紙預設範本');
+      });
+
+      document.getElementById('btnClearAllItems').addEventListener('click', () => {
+        state.items = [];
+        runNestingAlgorithm();
+        showToast('已清空所有排產項目');
+      });
+
+      window.addEventListener('resize', fitCanvasToViewport);
+    }
+
+    window.onload = () => {
+      initListeners();
+      runNestingAlgorithm();
+    };
+  </script>
+</body>
+</html>
