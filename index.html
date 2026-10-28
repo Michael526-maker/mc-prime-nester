@@ -699,6 +699,7 @@
       },
       selectedItemId: null,
       tempUploadedImg: null, // Holds dataURL for modal
+      tempUploadedData: null, // Holds { dataUrl, cmykImgUrl, cutImgUrl, detectedCutLayer, layers }
       items: [], // 預設全新空白，只放置用戶自己上傳的 AI / 圖片圖稿
       boards: []
     };
@@ -735,6 +736,10 @@
             color: item.color,
             label: item.label,
             imgUrl: item.imgUrl,
+            cmykImgUrl: item.cmykImgUrl || item.imgUrl,
+            cutImgUrl: item.cutImgUrl || null,
+            detectedCutLayer: item.detectedCutLayer || null,
+            layers: item.layers || [],
             area: item.width * item.height
           });
         }
@@ -1075,14 +1080,24 @@
         // CMYK Graphic Layer
         if (state.layersVisible.cmyk) {
           const cmykOpacity = state.cutSettings.inspectMode ? '0.12' : '1';
-          if (item.imgUrl) {
+          const displayImgUrl = (item.cutImgUrl && item.cmykImgUrl) ? item.cmykImgUrl : (item.imgUrl || item.cmykImgUrl);
+          if (displayImgUrl) {
             // Render actual uploaded image!
             const imgEl = document.createElementNS('http://www.w3.org/2000/svg', 'image');
-            imgEl.setAttribute('href', item.imgUrl);
-            imgEl.setAttribute('x', x);
-            imgEl.setAttribute('y', y);
-            imgEl.setAttribute('width', w);
-            imgEl.setAttribute('height', h);
+            imgEl.setAttribute('href', displayImgUrl);
+            if (item.rotated) {
+              // 真正的 90° 順時針物理旋轉：完美保持原圖長寬比例，絕不壓扁變形！
+              imgEl.setAttribute('x', 0);
+              imgEl.setAttribute('y', 0);
+              imgEl.setAttribute('width', item.w);
+              imgEl.setAttribute('height', item.h);
+              imgEl.setAttribute('transform', `translate(${x + item.placedW}, ${y}) rotate(90)`);
+            } else {
+              imgEl.setAttribute('x', x);
+              imgEl.setAttribute('y', y);
+              imgEl.setAttribute('width', item.w);
+              imgEl.setAttribute('height', item.h);
+            }
             imgEl.setAttribute('preserveAspectRatio', 'none');
             imgEl.setAttribute('opacity', cmykOpacity);
             itemG.appendChild(imgEl);
@@ -1134,54 +1149,112 @@
           itemG.appendChild(glossLayer);
         }
 
-        // CutContour Layer (Dual-Stroke Non-Scaling Ultra High Visibility)
+        // CutContour Layer (Dual-Stroke Non-Scaling Ultra High Visibility + Real DIECUT Vector Extraction)
         if (state.layersVisible.cut) {
-          const cutG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-          cutG.setAttribute('class', 'cut-contour-group');
+          if (item.cutImgUrl) {
+            // 🎯 原生識別提取的 DIECUT / OUTCUT 向量切線圖層 (精準保留每個文字、數字 0-9 獨立刀線)
+            const cutImgEl = document.createElementNS('http://www.w3.org/2000/svg', 'image');
+            cutImgEl.setAttribute('href', item.cutImgUrl);
+            if (item.rotated) {
+              cutImgEl.setAttribute('x', 0);
+              cutImgEl.setAttribute('y', 0);
+              cutImgEl.setAttribute('width', item.w);
+              cutImgEl.setAttribute('height', item.h);
+              cutImgEl.setAttribute('transform', `translate(${x + item.placedW}, ${y}) rotate(90)`);
+            } else {
+              cutImgEl.setAttribute('x', x);
+              cutImgEl.setAttribute('y', y);
+              cutImgEl.setAttribute('width', item.w);
+              cutImgEl.setAttribute('height', item.h);
+            }
+            cutImgEl.setAttribute('preserveAspectRatio', 'none');
+            cutImgEl.setAttribute('class', 'cut-contour-extracted-layer');
 
-          const offset = state.cutSettings.offsetMm || 0;
-          const cutX = x - offset;
-          const cutY = y - offset;
-          const cutW = w + offset * 2;
-          const cutH = h + offset * 2;
-          const cutShape = item.shape || 'rect';
+            // 雙重套色與螢光透視濾鏡
+            if (state.cutSettings.inspectMode) {
+              cutImgEl.setAttribute('filter', 'drop-shadow(0 0 1px #000000) drop-shadow(0 0 2.5px #ff007f) brightness(1.2)');
+              cutImgEl.setAttribute('opacity', '1');
+            } else if (state.cutSettings.casing) {
+              cutImgEl.setAttribute('filter', 'drop-shadow(0 0 1px #000000) drop-shadow(0 0 0.8px #ff007f)');
+              cutImgEl.setAttribute('opacity', '0.95');
+            } else {
+              cutImgEl.setAttribute('opacity', '0.9');
+            }
+            itemG.appendChild(cutImgEl);
 
-          // 1. High-Contrast Black Underlay Casing (Prevents blending into white/dark/rainbow decals)
-          if (state.cutSettings.casing) {
-            const casingLayer = createShapeElement(cutShape, cutX, cutY, cutW, cutH, {
+            // 角落切線圖層專屬識別徽章
+            const tagG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            tagG.setAttribute('opacity', state.cutSettings.inspectMode ? '0.95' : '0.55');
+            const tagRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            tagRect.setAttribute('x', x + 3);
+            tagRect.setAttribute('y', y + 3);
+            tagRect.setAttribute('width', '64');
+            tagRect.setAttribute('height', '13');
+            tagRect.setAttribute('rx', '3');
+            tagRect.setAttribute('fill', '#020617');
+            tagRect.setAttribute('stroke', '#f43f5e');
+            tagRect.setAttribute('stroke-width', '0.7');
+            tagG.appendChild(tagRect);
+
+            const tagText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            tagText.setAttribute('x', x + 35);
+            tagText.setAttribute('y', y + 12);
+            tagText.setAttribute('text-anchor', 'middle');
+            tagText.setAttribute('fill', '#fb7185');
+            tagText.setAttribute('font-size', '8');
+            tagText.setAttribute('font-weight', 'bold');
+            tagText.setAttribute('font-family', 'monospace');
+            tagText.textContent = `✂️ ${item.detectedCutLayer || 'DIECUT'}`;
+            tagG.appendChild(tagText);
+            itemG.appendChild(tagG);
+          } else {
+            const cutG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            cutG.setAttribute('class', 'cut-contour-group');
+
+            const offset = state.cutSettings.offsetMm || 0;
+            const cutX = x - offset;
+            const cutY = y - offset;
+            const cutW = w + offset * 2;
+            const cutH = h + offset * 2;
+            const cutShape = item.shape || 'rect';
+
+            // 1. High-Contrast Black Underlay Casing (Prevents blending into white/dark/rainbow decals)
+            if (state.cutSettings.casing) {
+              const casingLayer = createShapeElement(cutShape, cutX, cutY, cutW, cutH, {
+                fill: 'none',
+                stroke: '#000000',
+                strokeWidth: `${parseFloat(state.cutSettings.width) + 2.5}`,
+                opacity: '0.9',
+                vectorEffect: 'non-scaling-stroke'
+              });
+              cutG.appendChild(casingLayer);
+            }
+
+            // 2. Core High-Visibility Non-Scaling CutContour Line (Always 2.5px screen width!)
+            const coreLayer = createShapeElement(cutShape, cutX, cutY, cutW, cutH, {
               fill: 'none',
-              stroke: '#000000',
-              strokeWidth: `${parseFloat(state.cutSettings.width) + 2.5}`,
-              opacity: '0.9',
+              stroke: state.cutSettings.color,
+              strokeWidth: `${state.cutSettings.width}`,
+              strokeDasharray: state.cutSettings.style === 'dashed' || isSelected ? '6,3' : 'none',
               vectorEffect: 'non-scaling-stroke'
             });
-            cutG.appendChild(casingLayer);
+            cutG.appendChild(coreLayer);
+
+            // 3. Selection Glow
+            if (isSelected) {
+              const glowLayer = createShapeElement(cutShape, cutX, cutY, cutW, cutH, {
+                fill: 'none',
+                stroke: '#ffffff',
+                strokeWidth: `${parseFloat(state.cutSettings.width) + 1}`,
+                strokeDasharray: '4,4',
+                opacity: '0.9',
+                vectorEffect: 'non-scaling-stroke'
+              });
+              cutG.appendChild(glowLayer);
+            }
+
+            itemG.appendChild(cutG);
           }
-
-          // 2. Core High-Visibility Non-Scaling CutContour Line (Always 2.5px screen width!)
-          const coreLayer = createShapeElement(cutShape, cutX, cutY, cutW, cutH, {
-            fill: 'none',
-            stroke: state.cutSettings.color,
-            strokeWidth: `${state.cutSettings.width}`,
-            strokeDasharray: state.cutSettings.style === 'dashed' || isSelected ? '6,3' : 'none',
-            vectorEffect: 'non-scaling-stroke'
-          });
-          cutG.appendChild(coreLayer);
-
-          // 3. Selection Glow
-          if (isSelected) {
-            const glowLayer = createShapeElement(cutShape, cutX, cutY, cutW, cutH, {
-              fill: 'none',
-              stroke: '#ffffff',
-              strokeWidth: `${parseFloat(state.cutSettings.width) + 1}`,
-              strokeDasharray: '4,4',
-              opacity: '0.9',
-              vectorEffect: 'non-scaling-stroke'
-            });
-            cutG.appendChild(glowLayer);
-          }
-
-          itemG.appendChild(cutG);
         }
 
         if (isSelected) {
@@ -1356,12 +1429,22 @@
                 <div class="flex items-center space-x-1 text-[9px]">
                   ${item.hasWhite ? '<span class="px-1 bg-slate-800 text-slate-300 rounded font-medium">白</span>' : ''}
                   ${item.hasGloss ? '<span class="px-1 bg-amber-950 text-amber-400 rounded font-medium">油</span>' : ''}
-                  <span class="px-1 bg-fuchsia-950 text-fuchsia-400 rounded font-medium" title="符合 DIECUT/OUTCUT 或專色≤1px">切(DIECUT)</span>
+                  ${item.detectedCutLayer 
+                    ? `<span class="px-1.5 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-500/40 rounded font-bold" title="已識別專屬切線圖層: ${item.detectedCutLayer}">✂️ ${item.detectedCutLayer}</span>`
+                    : '<span class="px-1 bg-fuchsia-950 text-fuchsia-400 rounded font-medium" title="符合 DIECUT/OUTCUT 或專色≤1px">切(DIECUT)</span>'
+                  }
                 </div>
               </div>
             </div>
           </div>
           
+          ${item.layers && item.layers.length > 0 
+            ? `<div class="text-[9px] text-slate-400 px-2 py-1 bg-slate-950/50 rounded-xl border border-slate-800/60 mb-1.5 flex items-center justify-between truncate">
+                <span class="text-slate-500 shrink-0">圖層:</span>
+                <span class="font-mono text-slate-300 truncate ml-1 text-right" title="${item.layers.join(' · ')}">${item.layers.join(' · ')}</span>
+              </div>`
+            : ''
+          }
           <!-- Rotation Permission -->
           <div class="flex items-center justify-between text-[11px] bg-slate-950/70 px-2 py-1.5 rounded-xl border border-slate-800/80 mb-2">
             <span class="text-slate-400 text-[10px]">旋轉:</span>
@@ -1435,6 +1518,17 @@
       document.getElementById('inspectItemRot').textContent = item.rotated ? '↷ 90° 順時針旋轉' : '0° 原向正放';
       document.getElementById('inspectItemRotReason').textContent = item.rotReason || '自動空間匹配';
 
+      const cutBadge = document.getElementById('lblCutStatusBadge');
+      if (cutBadge) {
+        if (item.detectedCutLayer) {
+          cutBadge.innerHTML = `✂️ 專屬切線圖層: <strong class="text-emerald-300 font-mono">${item.detectedCutLayer}</strong> (已成功分離)`;
+          cutBadge.className = 'hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 whitespace-nowrap';
+        } else {
+          cutBadge.innerHTML = '✂️ 刀線 CutContour: 高對比已就緒';
+          cutBadge.className = 'hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-fuchsia-500/15 text-fuchsia-400 border border-fuchsia-500/30 whitespace-nowrap';
+        }
+      }
+
       renderSVGCanvas();
       renderItemList();
     }
@@ -1476,7 +1570,39 @@
     }
 
     // --- Illustrator ExtendScript (.jsx) Generator ---
-        // --- Direct Web-to-Print PDF Export (Caldera Style - Zero Illustrator Needed) ---
+        // Helper: Rotate Image by 90/180/270 degrees on offscreen canvas for PDF export (Never distorts)
+    function getRotatedImageDataUrl(srcUrl, degrees = 90) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          if (degrees === 90 || degrees === 270) {
+            canvas.width = img.naturalHeight;
+            canvas.height = img.naturalWidth;
+          } else {
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+          }
+          const ctx = canvas.getContext('2d');
+          if (degrees === 90) {
+            ctx.translate(canvas.width, 0);
+            ctx.rotate((90 * Math.PI) / 180);
+          } else if (degrees === 180) {
+            ctx.translate(canvas.width, canvas.height);
+            ctx.rotate(Math.PI);
+          } else if (degrees === 270) {
+            ctx.translate(0, canvas.height);
+            ctx.rotate((270 * Math.PI) / 180);
+          }
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = () => resolve(srcUrl);
+        img.src = srcUrl;
+      });
+    }
+
+    // --- Direct Web-to-Print PDF Export (Caldera Style - Zero Illustrator Needed) ---
     async function directExportPrintReadyPDF() {
       if (state.boards.length === 0 || state.items.length === 0) {
         showToast('目前沒有可排版的板面，請先加入圖稿！');
@@ -1544,10 +1670,16 @@
         for (let i = 0; i < board.items.length; i++) {
           const it = board.items[i];
 
-          // 1. Draw Graphic Image or Solid Fill
-          if (it.imgUrl && it.imgUrl.startsWith('data:image')) {
+          // 1. Draw Graphic Image (CMYK Layer)
+          const basePrintImg = (it.cutImgUrl && it.cmykImgUrl) ? it.cmykImgUrl : it.imgUrl;
+          if (basePrintImg && basePrintImg.startsWith('data:image')) {
             try {
-              doc.addImage(it.imgUrl, 'PNG', it.x, it.y, it.placedW, it.placedH, undefined, 'FAST');
+              if (it.rotated) {
+                const rotatedDataUrl = await getRotatedImageDataUrl(basePrintImg, 90);
+                doc.addImage(rotatedDataUrl, 'PNG', it.x, it.y, it.placedW, it.placedH, undefined, 'FAST');
+              } else {
+                doc.addImage(basePrintImg, 'PNG', it.x, it.y, it.placedW, it.placedH, undefined, 'FAST');
+              }
             } catch (imgErr) {
               doc.setFillColor(30, 41, 59);
               doc.roundedRect(it.x, it.y, it.placedW, it.placedH, 2, 2, 'F');
@@ -1558,6 +1690,18 @@
             doc.setTextColor(255, 255, 255);
             doc.setFontSize(16);
             doc.text(it.label, it.x + it.placedW / 2, it.y + it.placedH / 2 + 2, { align: 'center' });
+          }
+
+          // 1.5. Draw Extracted DIECUT Vector Layer if available
+          if (it.cutImgUrl && it.cutImgUrl.startsWith('data:image')) {
+            try {
+              if (it.rotated) {
+                const rotatedCut = await getRotatedImageDataUrl(it.cutImgUrl, 90);
+                doc.addImage(rotatedCut, 'PNG', it.x, it.y, it.placedW, it.placedH, undefined, 'FAST');
+              } else {
+                doc.addImage(it.cutImgUrl, 'PNG', it.x, it.y, it.placedW, it.placedH, undefined, 'FAST');
+              }
+            } catch(e) {}
           }
 
           // 2. Draw CutContour Magenta Path (0.5pt = 0.176mm)
@@ -1856,7 +2000,8 @@ runMultiArtboardImposition();
     function extractPdfFromAiBuffer(arrayBuffer) {
       const bytes = new Uint8Array(arrayBuffer);
       // Search for %PDF- (0x25, 0x50, 0x44, 0x46, 0x2D)
-      for (let i = 0; i < Math.min(bytes.length - 5, 1024 * 512); i++) {
+      // Expanded to 8MB for large Illustrator files with XMP and thumbnails
+      for (let i = 0; i < Math.min(bytes.length - 5, 1024 * 1024 * 8); i++) {
         if (bytes[i] === 0x25 && bytes[i+1] === 0x50 && bytes[i+2] === 0x44 && bytes[i+3] === 0x46 && bytes[i+4] === 0x2D) {
           return arrayBuffer.slice(i);
         }
@@ -1864,7 +2009,7 @@ runMultiArtboardImposition();
       return arrayBuffer;
     }
 
-    // Render page 1 of .ai / .pdf to high-res canvas DataURL and extract mm dimensions
+    // Render page 1 of .ai / .pdf, extract mm dimensions, and parse OCG layers (DIECUT / OUTCUT vs CMYK print)
     async function parseAiOrPdfFile(file) {
       const buffer = await file.arrayBuffer();
       const pdfBuffer = extractPdfFromAiBuffer(buffer);
@@ -1883,18 +2028,138 @@ runMultiArtboardImposition();
       const widthMm = Math.round(viewport.width * ptToMm);
       const heightMm = Math.round(viewport.height * ptToMm);
 
-      // Render thumbnail at 1.5x scale
-      const renderViewport = page.getViewport({ scale: 1.5 });
-      const canvas = document.createElement('canvas');
-      canvas.width = renderViewport.width;
-      canvas.height = renderViewport.height;
-      const ctx = canvas.getContext('2d');
+      // Render scale at 2.0x for razor-sharp vector contour inspection
+      const renderViewport = page.getViewport({ scale: 2.0 });
 
-      await page.render({ canvasContext: ctx, viewport: renderViewport }).promise;
-      const dataUrl = canvas.toDataURL('image/png');
+      // 1. 深度分析 PDF.js Optional Content Groups (OCG / Adobe Illustrator 圖層結構)
+      let ocgConfig = null;
+      let ocgGroups = [];
+      try {
+        ocgConfig = await pdfDoc.getOptionalContentConfig();
+        if (ocgConfig) {
+          if (typeof ocgConfig.getGroups === 'function') {
+            const raw = ocgConfig.getGroups();
+            if (raw) {
+              if (raw instanceof Map) {
+                for (const [id, grp] of raw.entries()) {
+                  ocgGroups.push({ id: id, name: (grp && grp.name) ? grp.name : String(grp || id) });
+                }
+              } else if (Array.isArray(raw)) {
+                raw.forEach((grp, idx) => {
+                  ocgGroups.push({ id: grp.id || String(idx), name: grp.name || String(grp) });
+                });
+              } else if (typeof raw === 'object') {
+                for (const key of Object.keys(raw)) {
+                  const grp = raw[key];
+                  ocgGroups.push({
+                    id: (grp && grp.id) ? grp.id : key,
+                    name: (grp && grp.name) ? grp.name : (typeof grp === 'string' ? grp : key)
+                  });
+                }
+              }
+            }
+          } else if (ocgConfig.groups) {
+            const raw = ocgConfig.groups;
+            if (raw instanceof Map) {
+              for (const [id, grp] of raw.entries()) {
+                ocgGroups.push({ id: id, name: (grp && grp.name) ? grp.name : String(grp || id) });
+              }
+            } else if (typeof raw === 'object') {
+              for (const key of Object.keys(raw)) {
+                const grp = raw[key];
+                ocgGroups.push({
+                  id: (grp && grp.id) ? grp.id : key,
+                  name: (grp && grp.name) ? grp.name : (typeof grp === 'string' ? grp : key)
+                });
+              }
+            }
+          }
+        }
+      } catch (ocgErr) {
+        console.warn('Optional content groups read error:', ocgErr);
+      }
+
+      console.log('AI/PDF Detected Layers (OCG):', ocgGroups);
+
+      // 2. MC Motoparts 規則 1 智能圖層匹配：DIECUT、OUTCUT、CutContour、Cut
+      const cutRegex = /^(diecut|outcut|cutcontour|thrucut|kisscut|crease|cut)$/i;
+      const looseCutRegex = /(diecut|outcut|cutcontour|contourcut|cut)/i;
+
+      const cutGroups = ocgGroups.filter(g => cutRegex.test(g.name.trim()) || looseCutRegex.test(g.name.trim()));
+      const printGroups = ocgGroups.filter(g => !cutRegex.test(g.name.trim()) && !looseCutRegex.test(g.name.trim()));
+
+      const hasCutLayer = cutGroups.length > 0;
+      const detectedCutLayerName = hasCutLayer ? cutGroups.map(g => g.name).join(', ') : null;
+      const allLayerNames = ocgGroups.map(g => g.name);
+
+      async function renderPageWithOcg(config, isTransparent = false) {
+        const c = document.createElement('canvas');
+        c.width = renderViewport.width;
+        c.height = renderViewport.height;
+        const ctx = c.getContext('2d');
+        if (!isTransparent) {
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, c.width, c.height);
+        } else {
+          ctx.clearRect(0, 0, c.width, c.height);
+        }
+        const renderParams = {
+          canvasContext: ctx,
+          viewport: renderViewport
+        };
+        if (config) {
+          renderParams.optionalContentConfigPromise = Promise.resolve(config);
+        }
+        await page.render(renderParams).promise;
+        return c.toDataURL('image/png');
+      }
+
+      let dataUrl = null;      // 全彩複合預覽 (所有圖層開啟)
+      let cmykImgUrl = null;   // 純 CMYK 印刷底圖 (隱藏 DIECUT 切線，防誤印紅線)
+      let cutImgUrl = null;    // 純 DIECUT 切割線層 (透明背景，隱藏 CMYK 圖層，只留切線向量)
+
+      if (hasCutLayer && ocgConfig) {
+        // A. 渲染全彩複合視圖
+        for (const g of ocgGroups) {
+          try { ocgConfig.setVisibility(g.id, true); } catch(e) {}
+        }
+        dataUrl = await renderPageWithOcg(ocgConfig, false);
+
+        // B. 渲染純 CMYK 印刷圖 (關閉 DIECUT 切線圖層)
+        for (const g of cutGroups) {
+          try { ocgConfig.setVisibility(g.id, false); } catch(e) {}
+        }
+        for (const g of printGroups) {
+          try { ocgConfig.setVisibility(g.id, true); } catch(e) {}
+        }
+        cmykImgUrl = await renderPageWithOcg(ocgConfig, false);
+
+        // C. 渲染純 DIECUT 切割線 (關閉 CMYK 印刷圖層，保留 DIECUT，輸出透明背景 PNG)
+        for (const g of printGroups) {
+          try { ocgConfig.setVisibility(g.id, false); } catch(e) {}
+        }
+        for (const g of cutGroups) {
+          try { ocgConfig.setVisibility(g.id, true); } catch(e) {}
+        }
+        cutImgUrl = await renderPageWithOcg(ocgConfig, true);
+
+        // 恢復所有圖層可見度
+        for (const g of ocgGroups) {
+          try { ocgConfig.setVisibility(g.id, true); } catch(e) {}
+        }
+      } else {
+        // 無 OCG 圖層時的一般預覽
+        dataUrl = await renderPageWithOcg(null, false);
+        cmykImgUrl = dataUrl;
+        cutImgUrl = null;
+      }
 
       return {
         dataUrl: dataUrl,
+        cmykImgUrl: cmykImgUrl,
+        cutImgUrl: cutImgUrl,
+        detectedCutLayer: detectedCutLayerName,
+        layers: allLayerNames,
         widthMm: Math.max(10, widthMm),
         heightMm: Math.max(10, heightMm)
       };
@@ -1908,16 +2173,30 @@ runMultiArtboardImposition();
 
       if (isAiOrPdf) {
         try {
-          showToast(`正在讀取 Adobe AI 檔案: ${file.name}...`);
+          showToast(`正在深度讀取 Adobe AI 檔案圖層與畫板: ${file.name}...`);
           const res = await parseAiOrPdfFile(file);
           state.tempUploadedImg = res.dataUrl;
+          state.tempUploadedData = res;
 
           document.getElementById('modalItemWidth').value = res.widthMm;
           document.getElementById('modalItemHeight').value = res.heightMm;
-          document.getElementById('modalImgPreviewContainer').innerHTML = 
-            `<img src="${res.dataUrl}" class="w-full h-full object-contain">`;
-          
-          showToast(`已成功讀取 AI 畫板尺寸: ${res.widthMm} × ${res.heightMm} mm`);
+
+          if (res.detectedCutLayer) {
+            document.getElementById('modalFileNameLabel').innerHTML = 
+              `<span class="text-emerald-400 font-bold">✅ 成功識別切線圖層: <strong class="underline">${res.detectedCutLayer}</strong></span><br>` +
+              `<span class="text-slate-400 text-[10px]">包含圖層: ${res.layers.join(' · ')}</span>`;
+            document.getElementById('modalImgPreviewContainer').innerHTML = 
+              `<div class="relative w-full h-full flex items-center justify-center bg-slate-950 rounded-lg overflow-hidden" title="已成功分離 CMYK 印刷層與 DIECUT 切線圖層">` +
+                `<img src="${res.cmykImgUrl || res.dataUrl}" class="w-full h-full object-contain">` +
+                `<img src="${res.cutImgUrl}" class="absolute inset-0 w-full h-full object-contain" style="filter: drop-shadow(0 0 1px #000000) drop-shadow(0 0 2px #ff007f);">` +
+              `</div>`;
+            showToast(`已成功識別專屬切線圖層「${res.detectedCutLayer}」！`);
+          } else {
+            document.getElementById('modalFileNameLabel').textContent = `${file.name} (${res.widthMm}×${res.heightMm}mm)`;
+            document.getElementById('modalImgPreviewContainer').innerHTML = 
+              `<img src="${res.dataUrl}" class="w-full h-full object-contain">`;
+            showToast(`已讀取 AI 畫板尺寸: ${res.widthMm} × ${res.heightMm} mm`);
+          }
           return;
         } catch (err) {
           console.warn('AI PDF parse failed, falling back to vector badge:', err);
@@ -2006,7 +2285,11 @@ runMultiArtboardImposition();
               hasGloss: true,
               color: '#ea580c',
               label: 'Ai',
-              imgUrl: res.dataUrl
+              imgUrl: res.dataUrl,
+              cmykImgUrl: res.cmykImgUrl || res.dataUrl,
+              cutImgUrl: res.cutImgUrl || null,
+              detectedCutLayer: res.detectedCutLayer || null,
+              layers: res.layers || []
             });
             count++;
           } else {
@@ -2375,6 +2658,7 @@ runMultiArtboardImposition();
       const modal = document.getElementById('addItemModal');
       const openModal = () => {
         state.tempUploadedImg = null;
+        state.tempUploadedData = null;
         document.getElementById('modalItemName').value = '';
         document.getElementById('modalFileNameLabel').textContent = '支援 .ai、.pdf、.png、.jpg 檔案';
         document.getElementById('modalImgPreviewContainer').innerHTML = '<span class="text-slate-600 text-[10px]">預覽</span>';
@@ -2454,7 +2738,11 @@ runMultiArtboardImposition();
           hasGloss: hasGloss,
           color: shape === 'oval' || shape === 'circle' ? '#ffffff' : '#1e293b',
           label: name.slice(0, 4),
-          imgUrl: state.tempUploadedImg
+          imgUrl: state.tempUploadedImg,
+          cmykImgUrl: state.tempUploadedData ? state.tempUploadedData.cmykImgUrl : state.tempUploadedImg,
+          cutImgUrl: state.tempUploadedData ? state.tempUploadedData.cutImgUrl : null,
+          detectedCutLayer: state.tempUploadedData ? state.tempUploadedData.detectedCutLayer : null,
+          layers: state.tempUploadedData ? state.tempUploadedData.layers : []
         };
 
         state.items.unshift(newItem);
