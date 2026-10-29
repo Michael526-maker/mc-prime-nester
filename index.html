@@ -22,8 +22,20 @@
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
     }
-    /* 離線／CDN 失敗時仍隱藏彈窗，避免全屏黑罩導致「無法使用」 */
-    .hidden { display: none !important; }
+    /* 只鎖彈窗／選單；不要用全域 .hidden !important，否則會蓋掉 Tailwind 的 md:flex */
+    #addItemModal.hidden,
+    #pdfExportModal.hidden,
+    #cutSettingsPopover.hidden {
+      display: none !important;
+    }
+    #boardCanvasWrapper {
+      transform-origin: 0 0;
+      position: absolute;
+      left: 0;
+      top: 0;
+      overflow: hidden;
+    }
+    #svgBedBoard { overflow: hidden; }
   </style>
   <!-- PDF.js for rendering Adobe AI (.ai) and PDF files -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -259,68 +271,72 @@
     <!-- Center: Interactive Preview Canvas (iOS Clean Window) -->
     <main class="flex-1 bg-slate-950 flex flex-col relative overflow-hidden">
       
-      <!-- iOS Pro Canvas Top Toolbar (Overflow Safe & Whitespace-Nowrap) -->
-      <div class="min-h-12 bg-slate-900/95 ios-blur border-b border-slate-800 px-3 py-1.5 flex flex-wrap items-center justify-between shrink-0 text-xs gap-2 z-20">
-        
-        <!-- View Switcher & Board Nav -->
-        <div class="flex items-center space-x-2 shrink-0 whitespace-nowrap">
-          <div class="bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center shadow-inner">
-            <button id="btnViewSingle" class="px-3 py-1 rounded-lg text-xs font-semibold bg-blue-600 text-white shadow transition whitespace-nowrap">
-              單板檢視
-            </button>
-            <button id="btnViewAll" class="px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 transition whitespace-nowrap">
-              多畫板並排總覽
-            </button>
+      <!-- Canvas toolbar: row 1 板面／縮放（永不裁切），row 2 塗層／刀線狀態 -->
+      <div class="bg-slate-900/95 ios-blur border-b border-slate-800 px-3 py-1.5 shrink-0 z-20 space-y-1.5">
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="flex items-center gap-2 min-w-0 overflow-x-auto">
+            <div class="bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center shadow-inner shrink-0">
+              <button id="btnViewSingle" class="px-3 py-1 rounded-lg text-xs font-semibold bg-blue-600 text-white shadow transition whitespace-nowrap">
+                單板檢視
+              </button>
+              <button id="btnViewAll" class="px-3 py-1 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 transition whitespace-nowrap">
+                多畫板並排總覽
+              </button>
+            </div>
+
+            <div id="boardNavControls" class="flex items-center space-x-1 bg-slate-950 px-2 py-0.5 rounded-xl border border-slate-800 shrink-0">
+              <button id="btnPrevBoard" class="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
+              </button>
+              <span id="boardPagination" class="font-bold text-slate-200 mono text-xs px-1.5 whitespace-nowrap">
+                第 1 / 1 塊
+              </span>
+              <button id="btnNextBoard" class="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+
+            <span id="canvasBedDimensionLabel" class="text-slate-400 text-xs mono font-semibold whitespace-nowrap">700 × 1200 mm</span>
           </div>
 
-          <!-- Board Paging -->
-          <div id="boardNavControls" class="flex items-center space-x-1 bg-slate-950 px-2 py-0.5 rounded-xl border border-slate-800 shrink-0">
-            <button id="btnPrevBoard" class="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 transition">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
+          <div class="ml-auto flex items-center space-x-1 shrink-0">
+            <button id="btnZoomOut" class="p-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 transition" title="縮小">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
             </button>
-            <span id="boardPagination" class="font-bold text-slate-200 mono text-xs px-1.5 whitespace-nowrap">
-              第 1 / 1 塊
-            </span>
-            <button id="btnNextBoard" class="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white disabled:opacity-20 transition">
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+            <span id="zoomLabel" class="text-slate-400 mono text-xs w-11 text-center font-bold">100%</span>
+            <button id="btnZoomIn" class="p-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 transition" title="放大">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            </button>
+            <button id="btnFitView" class="px-2.5 py-1 rounded-lg bg-slate-850 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-medium transition whitespace-nowrap">
+              適應全貌
             </button>
           </div>
-
-          <span id="canvasBedDimensionLabel" class="text-slate-400 text-xs mono font-semibold hidden md:inline whitespace-nowrap">700 × 1200 mm</span>
         </div>
 
-        <!-- Layer Toggles -->
-        <div class="flex items-center space-x-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 shrink-0 whitespace-nowrap">
-          <span class="text-[10px] text-slate-500 uppercase px-1 font-bold">塗層:</span>
-          
-          <button id="toggleCMYK" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center space-x-1 transition whitespace-nowrap">
-            <span class="w-2 h-2 rounded-full bg-rose-500"></span>
-            <span>CMYK</span>
-          </button>
-
-          <button id="toggleWhite" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-700/50 text-slate-200 border border-slate-600 flex items-center space-x-1 transition whitespace-nowrap">
-            <span class="w-2 h-2 rounded-full bg-white"></span>
-            <span>白墨 (White)</span>
-          </button>
-
-          <button id="toggleGloss" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center space-x-1 transition whitespace-nowrap">
-            <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-            <span>光油 (Gloss)</span>
-          </button>
-
-          <button id="toggleCut" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40 flex items-center space-x-1 transition whitespace-nowrap" title="切線顯示開關：符合 DIECUT / OUTCUT 圖層或非 White 專色 (<=1px)">
-            <span class="w-2 h-2 rounded-full bg-fuchsia-500"></span>
-            <span>刀線 (Cut)</span>
-          </button>
-
-          <!-- 刀線透視檢視模式 (一鍵淡化底圖看刀線) -->
-          <button id="btnCutInspectMode" class="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-fuchsia-300 border border-slate-700 flex items-center space-x-1 transition whitespace-nowrap" title="刀線透視檢視模式：將彩色底圖淡化為水印，極度凸顯每張貼紙的切割刀線">
-            <svg class="w-3.5 h-3.5 text-fuchsia-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"/></svg>
-            <span id="lblCutInspectText">刀線透視檢視</span>
-          </button>
-
-          <!-- 刀線外觀設定選單 (可切換洋紅/螢光綠/粗細/白邊) -->
-          <div class="relative">
+        <div class="flex items-center gap-1.5 min-w-0">
+          <div class="flex items-center space-x-1 bg-slate-950 p-1 rounded-xl border border-slate-800 min-w-0 overflow-x-auto">
+            <span class="text-[10px] text-slate-500 uppercase px-1 font-bold shrink-0">塗層</span>
+            <button id="toggleCMYK" class="px-2 py-1 rounded-lg text-[11px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/40 flex items-center space-x-1 transition whitespace-nowrap">
+              <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+              <span>CMYK</span>
+            </button>
+            <button id="toggleWhite" class="px-2 py-1 rounded-lg text-[11px] font-semibold bg-slate-700/50 text-slate-200 border border-slate-600 flex items-center space-x-1 transition whitespace-nowrap">
+              <span class="w-2 h-2 rounded-full bg-white"></span>
+              <span>白墨</span>
+            </button>
+            <button id="toggleGloss" class="px-2 py-1 rounded-lg text-[11px] font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center space-x-1 transition whitespace-nowrap">
+              <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+              <span>光油</span>
+            </button>
+            <button id="toggleCut" class="px-2 py-1 rounded-lg text-[11px] font-semibold bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-500/40 flex items-center space-x-1 transition whitespace-nowrap" title="切線顯示開關：DIECUT / OUTCUT 圖層或非 White 專色 (≤1pt)">
+              <span class="w-2 h-2 rounded-full bg-fuchsia-500"></span>
+              <span>刀線</span>
+            </button>
+            <button id="btnCutInspectMode" class="px-2 py-1 rounded-lg text-[11px] font-semibold bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-fuchsia-300 border border-slate-700 flex items-center space-x-1 transition whitespace-nowrap" title="刀線透視：淡化底圖，凸顯切割線">
+              <svg class="w-3.5 h-3.5 text-fuchsia-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z"/></svg>
+              <span id="lblCutInspectText">透視</span>
+            </button>
+            <div class="relative shrink-0">
             <button id="btnToggleCutSettings" class="px-2 py-1 rounded-lg text-[11px] font-medium bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 flex items-center space-x-1 transition whitespace-nowrap" title="自訂刀線顏色、線寬與出血留白">
               <span id="cutSettingsColorDot" class="w-2 h-2 rounded-full bg-[#ff007f] shadow"></span>
               <span>刀線設定</span>
@@ -417,28 +433,16 @@
                 </select>
               </div>
             </div>
+            </div>
           </div>
-        </div>
-
-        <!-- Zoom / Viewport controls -->
-        <div class="flex items-center space-x-1 shrink-0 whitespace-nowrap">
-          <button id="btnZoomOut" class="p-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 transition" title="縮小">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/></svg>
-          </button>
-          <span id="zoomLabel" class="text-slate-400 mono text-xs w-11 text-center font-bold">100%</span>
-          <button id="btnZoomIn" class="p-1.5 rounded-lg bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 transition" title="放大">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-          </button>
-          <button id="btnFitView" class="px-2.5 py-1 rounded-lg bg-slate-850 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-medium transition whitespace-nowrap">
-            適應全貌
-          </button>
+          <span id="canvasCutDetectStat" class="ml-auto shrink-0 px-2 py-1 rounded-lg text-[10px] font-semibold bg-slate-950 border border-slate-800 text-slate-400 whitespace-nowrap">刀線：未載入</span>
         </div>
       </div>
 
       <!-- Canvas Viewport -->
-      <div id="viewportContainer" class="flex-1 bg-slate-950 relative overflow-hidden flex items-center justify-center p-6 cursor-grab active:cursor-grabbing">
+      <div id="viewportContainer" class="flex-1 bg-slate-950 relative overflow-hidden cursor-grab active:cursor-grabbing">
         
-        <div id="boardCanvasWrapper" class="relative bg-slate-900 shadow-2xl rounded-lg transition-transform duration-75 border border-slate-800">
+        <div id="boardCanvasWrapper" class="bg-slate-900 shadow-2xl rounded-lg transition-transform duration-75 border border-slate-800">
           <svg id="svgBedBoard" class="w-full h-full block">
             <defs>
               <pattern id="bedGrid" width="40" height="40" patternUnits="userSpaceOnUse">
@@ -590,7 +594,10 @@
         <div class="bg-slate-950/80 rounded-2xl border border-slate-800 p-3.5 space-y-3">
           <div class="flex items-center justify-between">
             <span class="font-bold text-xs text-slate-200">切割線識別</span>
-            <span class="text-[10px] text-emerald-400 font-semibold">印刷與刀線分開</span>
+            <span class="text-[10px] text-emerald-400 font-semibold">圖層或專色（除 WHITE）</span>
+          </div>
+          <div id="modalCutDetectStatus" class="p-2.5 rounded-xl border border-slate-800 bg-slate-900/70 text-[11px] text-slate-400 leading-relaxed">
+            上傳 .ai / .pdf 後會自動檢查：① DIECUT／OUTCUT 圖層　② CutContour 等專色（線寬 ≤ 1pt，不含 WHITE）
           </div>
           <div class="grid grid-cols-3 gap-1 p-1 bg-slate-900 rounded-xl border border-slate-800 text-[10px] font-semibold text-center">
             <button type="button" id="tabModeLayer" class="py-1.5 px-1 rounded-lg bg-blue-600 text-white shadow transition">選圖層</button>
@@ -832,6 +839,9 @@
             cutSourceW: item.cutSourceW || item.width,
             cutSourceH: item.cutSourceH || item.height,
             detectedCutLayer: item.detectedCutLayer || null,
+            detectedSpotCut: item.detectedSpotCut || null,
+            cutMissing: !!item.cutMissing,
+            cutMethod: item.cutMethod || null,
             layers: item.layers || [],
             area: item.width * item.height
           });
@@ -1036,6 +1046,7 @@
 
       renderItemList();
       renderSVGCanvas();
+      updateCanvasCutDetectStat();
     }
 
     // --- SVG Canvas Rendering ---
@@ -1475,9 +1486,9 @@
                 <div class="flex items-center space-x-1 text-[9px]">
                   ${item.hasWhite ? '<span class="px-1 bg-slate-800 text-slate-300 rounded font-medium">白</span>' : ''}
                   ${item.hasGloss ? '<span class="px-1 bg-amber-950 text-amber-400 rounded font-medium">油</span>' : ''}
-                  ${item.detectedCutLayer 
-                    ? `<span class="px-1.5 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-500/40 rounded font-bold" title="已識別專屬切線圖層: ${item.detectedCutLayer}">✂️ ${item.detectedCutLayer}</span>`
-                    : '<span class="px-1 bg-fuchsia-950 text-fuchsia-400 rounded font-medium" title="符合 DIECUT/OUTCUT 或專色≤1px">切(DIECUT)</span>'
+                  ${itemHasRealCut(item)
+                    ? `<span class="px-1.5 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-500/40 rounded font-bold" title="${describeCutStatus(item).label}">✂️ ${describeCutStatus(item).label}</span>`
+                    : '<span class="px-1.5 py-0.5 bg-amber-950 text-amber-300 border border-amber-500/40 rounded font-bold" title="未發現 DIECUT/OUTCUT 圖層或非 WHITE 專色刀線">無刀線</span>'
                   }
                 </div>
               </div>
@@ -1566,12 +1577,13 @@
 
       const cutBadge = document.getElementById('lblCutStatusBadge');
       if (cutBadge) {
-        if (item.detectedCutLayer) {
-          cutBadge.innerHTML = `✂️ 專屬切線圖層: <strong class="text-emerald-300 font-mono">${item.detectedCutLayer}</strong> (已成功分離)`;
-          cutBadge.className = 'hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 whitespace-nowrap';
+        const st = describeCutStatus(item);
+        if (st.ok) {
+          cutBadge.innerHTML = `✂️ 刀線已識別: <strong class="text-emerald-300 font-mono">${st.label}</strong>`;
+          cutBadge.className = 'sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 whitespace-nowrap';
         } else {
-          cutBadge.innerHTML = '✂️ 刀線 CutContour: 高對比已就緒';
-          cutBadge.className = 'hidden sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-fuchsia-500/15 text-fuchsia-400 border border-fuchsia-500/30 whitespace-nowrap';
+          cutBadge.innerHTML = '⚠️ 未發現刀線（無 DIECUT 圖層／專色）';
+          cutBadge.className = 'sm:inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/40 whitespace-nowrap';
         }
       }
 
@@ -1599,10 +1611,13 @@
       const scaleW = contW / totalRenderW;
       const scaleH = contH / totalRenderH;
       const fitScale = Math.min(scaleW, scaleH) * 0.94;
+      const pad = 24;
+      const scaledW = totalRenderW * fitScale;
+      const scaledH = totalRenderH * fitScale;
 
       state.view.scale = fitScale;
-      state.view.panX = 0;
-      state.view.panY = 0;
+      state.view.panX = pad + Math.max(0, (contW - scaledW) / 2);
+      state.view.panY = pad + Math.max(0, (contH - scaledH) / 2);
 
       wrapper.style.width = `${totalRenderW}px`;
       wrapper.style.height = `${totalRenderH}px`;
@@ -1734,12 +1749,147 @@
       return Math.hypot(a.x - b.x, a.y - b.y) < 0.15;
     }
 
+    function isReservedNonCutSpot(name) {
+      return /WHITE|GLOSS|VARNISH|PRIMER|RDG_WHITE|RDG_GLOSS/i.test(String(name || ''));
+    }
+
+    function isCutSpotName(name) {
+      const n = String(name || '').replace(/^\/+/, '').toUpperCase();
+      if (!n || isReservedNonCutSpot(n)) return false;
+      return /^(DIECUT|OUTCUT|CUTCONTOUR|THRUCUT|THRU-CUT|KISSCUT|KISS-CUT|CUT|FRAME|CREASE)$/.test(n)
+        || /(DIECUT|OUTCUT|CUTCONTOUR|CONTOURCUT|THRUCUT|KISSCUT)/.test(n);
+    }
+
+    function isMagentaCmyk(c, m, y, k) {
+      return m >= 0.75 && c <= 0.2 && y <= 0.2 && k <= 0.2;
+    }
+
+    function isMagentaRgb(r, g, b) {
+      const nr = r > 1 ? r / 255 : r;
+      const ng = g > 1 ? g / 255 : g;
+      const nb = b > 1 ? b / 255 : b;
+      return nr >= 0.75 && ng <= 0.35 && nb >= 0.3;
+    }
+
+    function colorSpaceNameFromArg(arg) {
+      if (!arg) return '';
+      if (typeof arg === 'string') return arg;
+      if (Array.isArray(arg)) {
+        return arg.map(x => {
+          if (typeof x === 'string') return x;
+          if (x && x.name) return x.name;
+          return '';
+        }).filter(Boolean).join(' ');
+      }
+      if (arg.name) return arg.name;
+      try { return JSON.stringify(arg); } catch (e) { return String(arg); }
+    }
+
+    function scanPdfBufferForSpotNames(arrayBuffer) {
+      if (!arrayBuffer || arrayBuffer.byteLength === 0) return [];
+      let bytes;
+      try {
+        bytes = new Uint8Array(arrayBuffer);
+      } catch (e) {
+        return [];
+      }
+      const len = Math.min(bytes.length, 4 * 1024 * 1024);
+      const parts = [];
+      const step = 0x4000;
+      for (let i = 0; i < len; i += step) {
+        parts.push(String.fromCharCode.apply(null, bytes.subarray(i, Math.min(len, i + step))));
+      }
+      const text = parts.join('');
+      const names = new Set();
+      const re = /\/Separation\s*\/([A-Za-z0-9_-]+)/g;
+      let m;
+      while ((m = re.exec(text))) names.add(m[1]);
+      const re2 = /\/(CutContour|DIECUT|OUTCUT|ThruCut|KissCut)\b/gi;
+      while ((m = re2.exec(text))) names.add(m[1]);
+      return [...names];
+    }
+
+    function itemHasRealCut(item) {
+      if (!item) return false;
+      if (item.detectedCutLayer) return true;
+      if (item.detectedSpotCut) return true;
+      if (item.cutMethod === 'file' || item.cutMethod === 'color' || item.cutMethod === 'layer') {
+        return !!(item.cutVectorContours && item.cutVectorContours.length);
+      }
+      if (item.cutMissing) return false;
+      return !!(item.cutVectorContours && item.cutVectorContours.length && !item.cutIsFallbackRect);
+    }
+
+    function describeCutStatus(item) {
+      if (itemHasRealCut(item)) {
+        if (item.detectedCutLayer) return { ok: true, label: '圖層 ' + item.detectedCutLayer };
+        if (item.detectedSpotCut) return { ok: true, label: '專色 ' + item.detectedSpotCut };
+        if (item.cutMethod === 'file') return { ok: true, label: '獨立切線檔' };
+        if (item.cutMethod === 'color') return { ok: true, label: '專色提取' };
+        return { ok: true, label: '已識別刀線' };
+      }
+      return { ok: false, label: '未發現刀線' };
+    }
+
+    function updateCanvasCutDetectStat() {
+      const el = document.getElementById('canvasCutDetectStat');
+      if (!el) return;
+      const board = state.boards[state.view.currentBoardIndex];
+      if (!board || !board.items.length) {
+        el.textContent = '刀線：未載入';
+        el.className = 'ml-auto shrink-0 px-2 py-1 rounded-lg text-[10px] font-semibold bg-slate-950 border border-slate-800 text-slate-400 whitespace-nowrap';
+        return;
+      }
+      const uniqueIds = [...new Set(board.items.map(it => it.sourceId))];
+      const sources = uniqueIds.map(id => state.items.find(it => it.id === id) || board.items.find(it => it.sourceId === id));
+      const ok = sources.filter(itemHasRealCut).length;
+      const total = sources.length;
+      const missing = total - ok;
+      if (missing === 0) {
+        el.textContent = `刀線：${ok}/${total} 已識別`;
+        el.className = 'ml-auto shrink-0 px-2 py-1 rounded-lg text-[10px] font-semibold bg-emerald-950 border border-emerald-500/40 text-emerald-300 whitespace-nowrap';
+      } else if (ok === 0) {
+        el.textContent = `刀線：0/${total} 未發現（請設圖層或專色）`;
+        el.className = 'ml-auto shrink-0 px-2 py-1 rounded-lg text-[10px] font-semibold bg-amber-950 border border-amber-500/40 text-amber-300 whitespace-nowrap';
+      } else {
+        el.textContent = `刀線：${ok}/${total} 已識別，${missing} 件沒有`;
+        el.className = 'ml-auto shrink-0 px-2 py-1 rounded-lg text-[10px] font-semibold bg-amber-950 border border-amber-500/40 text-amber-300 whitespace-nowrap';
+      }
+    }
+
+    function renderModalCutDetectStatus(res) {
+      const el = document.getElementById('modalCutDetectStatus');
+      if (!el) return;
+      if (!res) {
+        el.className = 'p-2.5 rounded-xl border border-slate-800 bg-slate-900/70 text-[11px] text-slate-400 leading-relaxed';
+        el.textContent = '上傳 .ai / .pdf 後會自動檢查：① DIECUT／OUTCUT 圖層　② CutContour 等專色（線寬 ≤ 1pt，不含 WHITE）';
+        return;
+      }
+      const bits = [];
+      if (res.detectedCutLayer) bits.push('圖層 <strong class="font-mono text-emerald-300">' + res.detectedCutLayer + '</strong>');
+      if (res.detectedSpotCut) bits.push('專色 <strong class="font-mono text-emerald-300">' + res.detectedSpotCut + '</strong>');
+      const pathN = (res.cutVectorContours && res.cutVectorContours.length) ? res.cutVectorContours.length : 0;
+      if (bits.length) {
+        el.className = 'p-2.5 rounded-xl border border-emerald-500/40 bg-emerald-950/40 text-[11px] text-emerald-200 leading-relaxed';
+        el.innerHTML = '✅ 已識別刀線：' + bits.join('　·　') + (pathN ? `　（${pathN} 條向量路徑）` : '');
+      } else if (res.spotNames && res.spotNames.length && res.spotNames.some(n => !isReservedNonCutSpot(n))) {
+        const spots = res.spotNames.filter(n => !isReservedNonCutSpot(n)).join(', ');
+        el.className = 'p-2.5 rounded-xl border border-amber-500/40 bg-amber-950/30 text-[11px] text-amber-200 leading-relaxed';
+        el.innerHTML = '⚠️ 檔內有專色 <strong class="font-mono">' + spots + '</strong>，但未能抽出路徑。請用「專色識別」點選刀線顏色，或改指定圖層。';
+      } else {
+        el.className = 'p-2.5 rounded-xl border border-amber-500/50 bg-amber-950/40 text-[11px] text-amber-200 leading-relaxed';
+        el.innerHTML = '⚠️ 未發現 DIECUT／OUTCUT 圖層，也沒有 CutContour 專色。導出只會用矩形外框。<br>請指定圖層、上傳獨立切線檔，或用專色提取，確保有切割線。';
+      }
+    }
+
     async function extractPdfCutContours(page, options = {}) {
       if (!page || typeof page.getOperatorList !== 'function' || !window.pdfjsLib || !window.pdfjsLib.OPS) return [];
       const OPS = window.pdfjsLib.OPS;
       const cutIds = options.cutIds || new Set();
       const cutNames = options.cutNames || new Set();
       const allPaths = !!options.allPaths;
+      const spotStroke = !!options.spotStroke;
+      const maxPt = options.maxPt || 1.0;
       const opList = await page.getOperatorList();
       const fns = opList.fnArray;
       const argsArr = opList.argsArray;
@@ -1749,9 +1899,18 @@
       let ocDepth = 0;
       const cutStack = [];
       let inCut = allPaths;
+      let lineWidth = 1;
+      let strokeIsCutSpot = false;
+      let strokeIsMagenta = false;
       const subpaths = [];
       let current = [];
       let currentClosed = false;
+
+      function strokeQualifies() {
+        if (allPaths || inCut) return true;
+        if (spotStroke && lineWidth <= maxPt && (strokeIsCutSpot || strokeIsMagenta)) return true;
+        return false;
+      }
 
       function apply(x, y) {
         return {
@@ -1843,7 +2002,7 @@
           currentClosed = false;
         }
         const painted = subpaths.splice(0, subpaths.length);
-        if (!inCut) return;
+        if (!strokeQualifies()) return;
         painted.forEach(sub => {
           if (sub.pts.length >= 2) collected.push(sub);
         });
@@ -1852,11 +2011,33 @@
         const fn = fns[i];
         const arg = argsArr[i];
         if (fn === OPS.save) {
-          stack.push(ctm.slice());
+          stack.push({ ctm: ctm.slice(), lineWidth, strokeIsCutSpot, strokeIsMagenta });
         } else if (fn === OPS.restore) {
-          ctm = stack.pop() || [1, 0, 0, 1, 0, 0];
+          const prev = stack.pop();
+          if (prev && prev.ctm) {
+            ctm = prev.ctm;
+            lineWidth = prev.lineWidth;
+            strokeIsCutSpot = prev.strokeIsCutSpot;
+            strokeIsMagenta = prev.strokeIsMagenta;
+          } else {
+            ctm = [1, 0, 0, 1, 0, 0];
+          }
         } else if (fn === OPS.transform && Array.isArray(arg)) {
           ctm = multiplyMatrix(ctm, arg);
+        } else if (fn === OPS.setLineWidth) {
+          lineWidth = Array.isArray(arg) ? Number(arg[0]) : Number(arg);
+        } else if (fn === OPS.setStrokeRGBColor && Array.isArray(arg)) {
+          strokeIsMagenta = isMagentaRgb(arg[0], arg[1], arg[2]);
+          strokeIsCutSpot = false;
+        } else if (fn === OPS.setStrokeCMYKColor && Array.isArray(arg)) {
+          strokeIsMagenta = isMagentaCmyk(arg[0], arg[1], arg[2], arg[3]);
+          strokeIsCutSpot = false;
+        } else if (fn === OPS.setStrokeColorSpace) {
+          const csName = colorSpaceNameFromArg(arg);
+          strokeIsCutSpot = isCutSpotName(csName) || [...cutNames].some(n => csName.toUpperCase().includes(String(n).toUpperCase()));
+          if (isReservedNonCutSpot(csName)) strokeIsCutSpot = false;
+        } else if (fn === OPS.setStrokeColorN) {
+          /* tint only; cut-ness comes from the current Separation color space */
         } else if (fn === OPS.beginMarkedContentProps || fn === OPS.beginMarkedContent) {
           ocDepth++;
           if (!allPaths && markedIsCut(arg)) {
@@ -2481,6 +2662,8 @@
       data.cmykImgUrl = cmykCanvas.toDataURL('image/png');
       data.cutImgUrl = cutCanvas.toDataURL('image/png');
       data.detectedCutLayer = data.ocgGroups.filter(g => cutIds.has(g.id)).map(g => g.name).join(', ') || '手動指定刀線';
+      data.cutMethod = 'layer';
+      data.cutMissing = false;
       let vectors = [];
       try {
         vectors = await extractPdfCutContours(page, { cutIds, cutNames: new Set() });
@@ -2494,6 +2677,7 @@
       data.widthMmExact = data.pageWidthMm || data.widthMmExact;
       data.heightMmExact = data.pageHeightMm || data.heightMmExact;
       updateModalPreviewDisplay();
+      renderModalCutDetectStatus(data);
       showToast(`已將「${data.detectedCutLayer}」提取為向量刀線。`);
     }
 
@@ -2809,12 +2993,13 @@ runMultiArtboardImposition();
     async function parseAiOrPdfFile(file, options = {}) {
       const buffer = await file.arrayBuffer();
       const pdfBuffer = extractPdfFromAiBuffer(buffer);
+      const spotNamesEarly = scanPdfBufferForSpotNames(pdfBuffer);
 
       if (!window.pdfjsLib) {
         throw new Error('PDF.js not loaded');
       }
 
-      const loadingTask = window.pdfjsLib.getDocument({ data: pdfBuffer });
+      const loadingTask = window.pdfjsLib.getDocument({ data: pdfBuffer.slice(0) });
       const pdfDoc = await loadingTask.promise;
       const page = await pdfDoc.getPage(1);
       const viewport = page.getViewport({ scale: 1.0 });
@@ -2960,6 +3145,10 @@ runMultiArtboardImposition();
         cutImgUrl = null;
       }
 
+      const spotNames = spotNamesEarly;
+      const cutSpotNames = spotNames.filter(isCutSpotName);
+      let detectedSpotCut = cutSpotNames.length ? cutSpotNames.join(', ') : null;
+
       let cutVectorContours = [];
       try {
         if (cutGroups.length) {
@@ -2968,23 +3157,40 @@ runMultiArtboardImposition();
             cutNames: new Set(cutGroups.map(g => String(g.name || '').toUpperCase()))
           });
         }
+        if (!cutVectorContours || !cutVectorContours.length) {
+          const spotPaths = await extractPdfCutContours(page, {
+            spotStroke: true,
+            maxPt: 1.0,
+            cutNames: new Set(cutSpotNames.map(n => String(n).toUpperCase()))
+          });
+          if (spotPaths && spotPaths.length) {
+            cutVectorContours = spotPaths;
+            if (!detectedSpotCut) detectedSpotCut = '洋紅細線 ≤1pt';
+          }
+        }
         if ((!cutVectorContours || !cutVectorContours.length) && options.allPaths) {
           cutVectorContours = await extractPdfCutContours(page, { allPaths: true });
         }
-        if ((!cutVectorContours || !cutVectorContours.length) && cutCanvas) {
+        if ((!cutVectorContours || !cutVectorContours.length) && cutCanvas && cutGroups.length) {
           cutVectorContours = traceCanvasContours(cutCanvas, widthMmExact, heightMmExact);
         }
       } catch (vecErr) {
         console.warn('Cut vector extract failed:', vecErr);
-        if (cutCanvas) cutVectorContours = traceCanvasContours(cutCanvas, widthMmExact, heightMmExact);
+        if (cutCanvas && cutGroups.length) cutVectorContours = traceCanvasContours(cutCanvas, widthMmExact, heightMmExact);
       }
+
+      const hasRealCut = !!(detectedCutLayerName || detectedSpotCut);
 
       return {
         dataUrl: dataUrl,
         cmykImgUrl: cmykImgUrl,
         cutImgUrl: cutImgUrl,
-        cutVectorContours: cutVectorContours,
+        cutVectorContours: hasRealCut ? (cutVectorContours || []) : [],
+        cutIsFallbackRect: !hasRealCut,
+        cutMissing: !hasRealCut,
         detectedCutLayer: detectedCutLayerName,
+        detectedSpotCut: detectedSpotCut,
+        spotNames: spotNames,
         detectedWhiteLayer: whiteGroups.length ? whiteGroups.map(g => g.name).join(', ') : null,
         detectedGlossLayer: glossGroups.length ? glossGroups.map(g => g.name).join(', ') : null,
         hasWhite: whiteGroups.length > 0,
@@ -3031,22 +3237,20 @@ runMultiArtboardImposition();
           if (badgeGloss) badgeGloss.textContent = res.hasGloss ? ('已識別 ' + res.detectedGlossLayer) : '無光油層';
           if (typeof populateModalLayerList === 'function') populateModalLayerList(res);
           if (typeof updateModalPreviewDisplay === 'function') updateModalPreviewDisplay();
+          renderModalCutDetectStatus(res);
 
-          if (res.detectedCutLayer) {
-            document.getElementById('modalFileNameLabel').innerHTML = 
-              `<span class="text-emerald-400 font-bold">✅ 成功識別切線圖層: <strong class="underline">${res.detectedCutLayer}</strong></span><br>` +
-              `<span class="text-slate-400 text-[10px]">包含圖層: ${res.layers.join(' · ')}</span>`;
-            document.getElementById('modalImgPreviewContainer').innerHTML = 
-              `<div class="relative w-full h-full flex items-center justify-center bg-slate-950 rounded-lg overflow-hidden" title="已成功分離 CMYK 印刷層與 DIECUT 切線圖層">` +
-                `<img src="${res.cmykImgUrl || res.dataUrl}" class="w-full h-full object-contain">` +
-                `<img src="${res.cutImgUrl}" class="absolute inset-0 w-full h-full object-contain" style="filter: drop-shadow(0 0 1px #000000) drop-shadow(0 0 2px #ff007f);">` +
-              `</div>`;
-            showToast(`已成功識別專屬切線圖層「${res.detectedCutLayer}」！`);
+          const layerHint = (res.layers && res.layers.length) ? res.layers.join(' · ') : '無 OCG 圖層';
+          if (res.detectedCutLayer || res.detectedSpotCut) {
+            const found = [res.detectedCutLayer && ('圖層 ' + res.detectedCutLayer), res.detectedSpotCut && ('專色 ' + res.detectedSpotCut)].filter(Boolean).join(' · ');
+            document.getElementById('modalFileNameLabel').innerHTML =
+              `<span class="text-emerald-400 font-bold">✅ 已識別刀線: ${found}</span><br>` +
+              `<span class="text-slate-400 text-[10px]">${file.name} · ${res.widthMm}×${res.heightMm}mm · ${layerHint}</span>`;
+            showToast('已識別刀線：' + found);
           } else {
-            document.getElementById('modalFileNameLabel').textContent = `${file.name} (${res.widthMm}×${res.heightMm}mm)`;
-            document.getElementById('modalImgPreviewContainer').innerHTML = 
-              `<img src="${res.dataUrl}" class="w-full h-full object-contain">`;
-            showToast(`已讀取 AI 畫板尺寸: ${res.widthMm} × ${res.heightMm} mm`);
+            document.getElementById('modalFileNameLabel').innerHTML =
+              `<span class="text-amber-300 font-bold">⚠️ 未發現刀線圖層或專色</span><br>` +
+              `<span class="text-slate-400 text-[10px]">${file.name} · ${res.widthMm}×${res.heightMm}mm · ${layerHint}</span>`;
+            showToast('未發現 DIECUT／OUTCUT 或 CutContour 專色，請指定切線');
           }
           return;
         } catch (err) {
@@ -3079,6 +3283,15 @@ runMultiArtboardImposition();
 
           document.getElementById('modalImgPreviewContainer').innerHTML = 
             `<img src="${dataUrl}" class="w-full h-full object-contain">`;
+          state.tempUploadedData = {
+            dataUrl,
+            cmykImgUrl: dataUrl,
+            cutMissing: true,
+            cutVectorContours: [],
+            widthMmExact: defaultW,
+            heightMmExact: defaultH
+          };
+          renderModalCutDetectStatus({ cutMissing: true });
         };
         img.src = dataUrl;
       };
@@ -3105,6 +3318,7 @@ runMultiArtboardImposition();
       if (!files || files.length === 0) return;
       showToast(`正在處理 ${files.length} 個圖檔...`);
       let count = 0;
+      let missingCut = 0;
 
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
@@ -3143,8 +3357,11 @@ runMultiArtboardImposition();
               cutSourceW: res.widthMmExact || res.widthMm,
               cutSourceH: res.heightMmExact || res.heightMm,
               detectedCutLayer: res.detectedCutLayer || null,
+              detectedSpotCut: res.detectedSpotCut || null,
+              cutMissing: !!res.cutMissing,
               layers: res.layers || []
             });
+            if (res.cutMissing) missingCut++;
             count++;
           } else {
             // Standard image
@@ -3176,8 +3393,10 @@ runMultiArtboardImposition();
               hasGloss: true,
               color: '#1e293b',
               label: name.slice(0, 4),
-              imgUrl: dataUrl
+              imgUrl: dataUrl,
+              cutMissing: true
             });
+            missingCut++;
             count++;
           }
         } catch (err) {
@@ -3186,7 +3405,11 @@ runMultiArtboardImposition();
       }
 
       runNestingAlgorithm();
-      showToast(`已成功匯入 ${count} 個圖稿（包含 Adobe AI / 圖片）！`);
+      if (missingCut > 0) {
+        showToast(`已匯入 ${count} 個圖稿，其中 ${missingCut} 個未發現刀線（請設 DIECUT 圖層或專色）`);
+      } else {
+        showToast(`已匯入 ${count} 個圖稿，刀線均已識別`);
+      }
     }
 
     // --- Event Listeners Initialization ---
@@ -3594,8 +3817,11 @@ runMultiArtboardImposition();
           state.tempUploadedData.widthMmExact = mainW;
           state.tempUploadedData.heightMmExact = mainH;
           state.tempUploadedData.detectedCutLayer = '獨立檔: ' + cutFile.name;
+          state.tempUploadedData.cutMethod = 'file';
+          state.tempUploadedData.cutMissing = false;
           document.getElementById('modalCutFileNameLabel').textContent = '已加載 ' + cutFile.name;
           updateModalPreviewDisplay();
+          renderModalCutDetectStatus(state.tempUploadedData);
           showToast('已加載獨立切割線');
         } catch (err) {
           console.error(err);
@@ -3626,8 +3852,12 @@ runMultiArtboardImposition();
           state.tempUploadedData.cutVectorContours = result.cutVectorContours;
           state.tempUploadedData.widthMmExact = targetW;
           state.tempUploadedData.heightMmExact = targetH;
-          state.tempUploadedData.detectedCutLayer = '專色 ' + hex;
+          state.tempUploadedData.detectedCutLayer = null;
+          state.tempUploadedData.detectedSpotCut = hex;
+          state.tempUploadedData.cutMethod = 'color';
+          state.tempUploadedData.cutMissing = !(result.matchCount > 0);
           updateModalPreviewDisplay();
+          renderModalCutDetectStatus(state.tempUploadedData);
           showToast('已提取專色線條 ' + result.matchCount + ' 像素');
         };
         img.src = state.tempUploadedData.dataUrl;
@@ -3641,6 +3871,7 @@ runMultiArtboardImposition();
         document.getElementById('modalItemName').value = '';
         document.getElementById('modalFileNameLabel').textContent = '支援 .ai、.pdf、.png、.jpg 檔案';
         document.getElementById('modalImgPreviewContainer').innerHTML = '<span class="text-slate-600 text-[10px]">預覽</span>';
+        renderModalCutDetectStatus(null);
         modal.classList.remove('hidden');
         modal.classList.add('flex');
         document.getElementById('modalItemName').focus();
@@ -3724,13 +3955,17 @@ runMultiArtboardImposition();
           cutSourceW: state.tempUploadedData ? (state.tempUploadedData.widthMmExact || w) : w,
           cutSourceH: state.tempUploadedData ? (state.tempUploadedData.heightMmExact || h) : h,
           detectedCutLayer: state.tempUploadedData ? state.tempUploadedData.detectedCutLayer : null,
+          detectedSpotCut: state.tempUploadedData ? state.tempUploadedData.detectedSpotCut : null,
+          cutMissing: state.tempUploadedData ? !!state.tempUploadedData.cutMissing : true,
+          cutMethod: state.tempUploadedData ? state.tempUploadedData.cutMethod : null,
           layers: state.tempUploadedData ? state.tempUploadedData.layers : []
         };
+        if (itemHasRealCut(newItem)) newItem.cutMissing = false;
 
         state.items.unshift(newItem);
         closeModal();
         runNestingAlgorithm();
-        showToast(`已成功加入圖稿: ${name}`);
+        showToast(itemHasRealCut(newItem) ? `已加入圖稿（刀線已識別）: ${name}` : `已加入圖稿: ${name}（⚠️ 未發現刀線）`);
       });
 
       // Presets & Clear
