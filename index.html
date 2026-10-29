@@ -22,6 +22,8 @@
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
     }
+    /* 離線／CDN 失敗時仍隱藏彈窗，避免全屏黑罩導致「無法使用」 */
+    .hidden { display: none !important; }
   </style>
   <!-- PDF.js for rendering Adobe AI (.ai) and PDF files -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
