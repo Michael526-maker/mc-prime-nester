@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 打印工作室 — 對手參考圖 → 打印稿</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg0: #071018;
+      --card: #101a28;
+      --line: #243246;
+      --ok: #2dd4bf;
+      --hi: #38bdf8;
+    }
+    body {
+      font-family: "DM Sans", "PingFang HK", "Noto Sans TC", sans-serif;
+      background:
+        radial-gradient(900px 480px at 12% -8%, rgba(45,212,191,.14), transparent 55%),
+        radial-gradient(700px 420px at 90% 0%, rgba(56,189,248,.10), transparent 50%),
+        linear-gradient(180deg, #061018, #0a121c 50%, #070e16);
+      -webkit-font-smoothing: antialiased;
+    }
+    .mono { font-family: "JetBrains Mono", monospace; }
+    .card { background: rgba(16,26,40,.88); border: 1px solid var(--line); border-radius: 1.25rem; }
+    .drop {
+      border: 2px dashed rgba(45,212,191,.35);
+      background: rgba(45,212,191,.05);
+      transition: .2s ease;
+    }
+    .drop.drag { border-color: #2dd4bf; background: rgba(45,212,191,.12); }
+    .step-dot { width: 28px; height: 28px; border-radius: 999px; display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+    .step-on { background: #2dd4bf; color: #042f2e; }
+    .step-off { background: #1e293b; color: #94a3b8; }
+    .thumb { aspect-ratio: 3/4; object-fit: cover; border-radius: .75rem; width: 100%; background: #0b1220; }
+    .print-thumb { aspect-ratio: 215.5/281.6; object-fit: contain; width: 100%; background: #0b1220; border-radius: .75rem; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-thumb { background: rgba(148,163,184,.3); border-radius: 99px; }
+  </style>
+</head>
+<body class="text-slate-100 min-h-screen">
+
+  <header class="sticky top-0 z-30 border-b border-slate-800/80 bg-slate-950/75 backdrop-blur-xl">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-9 h-9 rounded-2xl bg-gradient-to-br from-teal-400 to-sky-500 text-slate-950 font-bold grid place-items-center shrink-0">PN</div>
+        <div class="min-w-0">
+          <h1 class="text-sm font-bold tracking-tight">AI 打印工作室</h1>
+          <p class="text-[11px] text-slate-400 truncate">對手渲染圖 → 生成直向打印稿 · 簡單三步</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <a href="./index.html" class="px-3 py-2 rounded-xl text-xs font-medium bg-slate-900 border border-slate-700 hover:bg-slate-800">拼版 Studio</a>
+        <button id="btnSettings" class="px-3 py-2 rounded-xl text-xs font-medium bg-slate-900 border border-slate-700 hover:bg-slate-800">AI 設定</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- How it works -->
+    <section class="card p-4 sm:p-5">
+      <h2 class="text-sm font-bold mb-3">點用（好簡單）</h2>
+      <div class="grid sm:grid-cols-3 gap-3 text-xs">
+        <div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3 flex gap-3">
+          <div class="step-dot step-on">1</div>
+          <div>
+            <div class="font-semibold">放入對手圖</div>
+            <div class="text-slate-400 mt-1">將對手產品渲染圖拖入下面資料夾（可一次多張）</div>
+          </div>
+        </div>
+        <div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3 flex gap-3">
+          <div class="step-dot step-on">2</div>
+          <div>
+            <div class="font-semibold">選機型，撳生成</div>
+            <div class="text-slate-400 mt-1">系統按參考圖重新產出直向打印圖</div>
+          </div>
+        </div>
+        <div class="rounded-xl bg-slate-950/70 border border-slate-800 p-3 flex gap-3">
+          <div class="step-dot step-on">3</div>
+          <div>
+            <div class="font-semibold">下載打印稿</div>
+            <div class="text-slate-400 mt-1">之後可丟去拼版 Studio；渲染程式稍後再做</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="grid lg:grid-cols-2 gap-6">
+      <!-- Left: reference folder -->
+      <section class="card p-4 sm:p-5 space-y-4">
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <h2 class="text-sm font-bold">① 對手參考資料夾</h2>
+            <p class="text-[11px] text-slate-400 mt-0.5">對應倉庫裏嘅 <span class="mono text-teal-300">references/</span></p>
+          </div>
+          <span id="refCount" class="text-[11px] mono text-slate-400">0 張</span>
+        </div>
+
+        <label id="dropZone" class="drop rounded-2xl p-8 block cursor-pointer text-center">
+          <input id="fileInput" type="file" accept="image/*" multiple class="hidden">
+          <div class="text-teal-300 font-semibold text-sm">拖曳圖片到呢度，或撳呢度選擇</div>
+          <div class="text-[11px] text-slate-400 mt-2">支援一次揀成個資料夾／多張 JPG、PNG、WEBP</div>
+        </label>
+        <div class="flex gap-2 flex-wrap">
+          <label class="flex-1 min-w-[120px] px-3 py-2 rounded-xl text-xs font-semibold text-center bg-teal-600 hover:bg-teal-500 cursor-pointer">
+            選擇多張圖片
+            <input id="fileInputMulti" type="file" accept="image/*" multiple class="hidden">
+          </label>
+          <button id="btnLoadDemo" class="px-3 py-2 rounded-xl text-xs font-semibold bg-sky-600 hover:bg-sky-500">載入示範對手圖</button>
+          <button id="btnClearRefs" class="px-3 py-2 rounded-xl text-xs font-medium bg-slate-900 border border-slate-700 hover:bg-slate-800">清空資料夾</button>
+        </div>
+
+        <div id="refGrid" class="grid grid-cols-3 sm:grid-cols-4 gap-2 min-h-[80px]"></div>
+      </section>
+
+      <!-- Right: generate -->
+      <section class="card p-4 sm:p-5 space-y-4">
+        <div>
+          <h2 class="text-sm font-bold">② 生成打印圖</h2>
+          <p class="text-[11px] text-slate-400 mt-0.5">輸出直向打印稿（含出血同相機開孔預覽）</p>
+        </div>
+
+        <label class="block text-xs space-y-1.5">
+          <span class="text-slate-400">機型</span>
+          <select id="deviceSelect" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:border-teal-500"></select>
+        </label>
+
+        <label class="block text-xs space-y-1.5">
+          <span class="text-slate-400">生成方式</span>
+          <select id="genMode" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm font-semibold focus:outline-none focus:border-teal-500">
+            <option value="smart">智能提取（免 API，即用）</option>
+            <option value="ai">AI 重繪（需要 Hugging Face Token）</option>
+          </select>
+        </label>
+
+        <label class="block text-xs space-y-1.5">
+          <span class="text-slate-400">出血 Bleed (mm)</span>
+          <input id="bleedMm" type="number" min="0" max="8" step="0.5" value="2" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm mono">
+        </label>
+
+        <button id="btnGenerate" class="w-full py-3.5 rounded-2xl text-sm font-bold bg-gradient-to-r from-teal-500 to-sky-500 text-slate-950 shadow-lg shadow-teal-500/20 hover:brightness-110 active:scale-[0.99] transition disabled:opacity-40 disabled:pointer-events-none">
+          一鍵生成打印圖
+        </button>
+        <p id="genStatus" class="text-[11px] text-slate-400 text-center">先放入至少一張對手圖</p>
+      </section>
+    </div>
+
+    <!-- Results -->
+    <section class="card p-4 sm:p-5 space-y-4">
+      <div class="flex items-center justify-between gap-2 flex-wrap">
+        <div>
+          <h2 class="text-sm font-bold">③ 生成結果（打印稿）</h2>
+          <p class="text-[11px] text-slate-400 mt-0.5">對應倉庫 <span class="mono text-sky-300">prints/</span> · 可下載後丟入拼版</p>
+        </div>
+        <button id="btnDownloadAll" class="px-3 py-2 rounded-xl text-xs font-semibold bg-sky-600 hover:bg-sky-500 disabled:opacity-40" disabled>全部下載</button>
+      </div>
+      <div id="outGrid" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 min-h-[100px]">
+        <div id="outEmpty" class="col-span-full text-center text-slate-500 text-xs py-10 border border-dashed border-slate-800 rounded-2xl">未有結果 — 完成上面兩步就會喺度顯示</div>
+      </div>
+    </section>
+
+    <section class="rounded-2xl border border-amber-500/25 bg-amber-500/5 p-4 text-xs text-slate-300 space-y-1">
+      <div class="font-bold text-amber-300">之後會做嘅：自家渲染程式</div>
+      <p class="text-slate-400">而家流程專注「對手圖 → 打印稿」。等打印圖穩定之後，再單獨做「打印稿 → 自家產品渲染預覽」程式，唔再同透視展開綁死。</p>
+    </section>
+  </main>
+
+  <!-- Settings modal -->
+  <div id="settingsModal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm grid place-items-center p-4">
+    <div class="card w-full max-w-md p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-bold">AI 設定（可選）</h3>
+        <button id="btnCloseSettings" class="text-slate-400 hover:text-white text-sm">關閉</button>
+      </div>
+      <p class="text-[11px] text-slate-400 leading-relaxed">若要用「AI 重繪」，請喺 <a class="text-sky-400 underline" href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener">Hugging Face</a> 建立 Token，貼到下面（只存喺你部瀏覽器，唔會上傳到我哋伺服器）。唔填都可以用「智能提取」。</p>
+      <label class="block text-xs space-y-1.5">
+        <span class="text-slate-400">HF Token</span>
+        <input id="hfToken" type="password" autocomplete="off" placeholder="hf_..." class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2.5 text-sm mono">
+      </label>
+      <button id="btnSaveSettings" class="w-full py-2.5 rounded-xl text-xs font-bold bg-teal-600 hover:bg-teal-500">儲存</button>
+    </div>
+  </div>
+
+  <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 hidden px-4 py-2 rounded-xl bg-slate-100 text-slate-900 text-xs font-semibold shadow-xl"></div>
+
+<script>
+(() => {
+  const DPI = 150;
+  const MM = 25.4;
+  const DEVICES = [
+    { id: 'ipad-pro-13', name: 'iPad Pro 13" · 直向', w: 215.5, h: 281.6, r: 18, cam: { type: 'rr', x: 10, y: 10, w: 28, h: 28, rr: 7 } },
+    { id: 'ipad-pro-11', name: 'iPad Pro 11" · 直向', w: 177.5, h: 249.7, r: 16, cam: { type: 'rr', x: 9, y: 9, w: 26, h: 26, rr: 6.5 } },
+    { id: 'ipad-air-13', name: 'iPad Air 13" · 直向', w: 214.9, h: 280.6, r: 18, cam: { type: 'c', x: 18, y: 18, r: 6.5 } },
+    { id: 'ipad-air-11', name: 'iPad Air 11" · 直向', w: 178.5, h: 247.6, r: 16, cam: { type: 'c', x: 16, y: 16, r: 6 } },
+    { id: 'ipad-mini', name: 'iPad mini · 直向', w: 134.8, h: 195.4, r: 14, cam: { type: 'c', x: 14, y: 14, r: 5.5 } }
+  ];
+
+  const state = {
+    refs: [], // { id, name, img, url }
+    outs: []  // { id, name, canvas, url }
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const toast = (msg) => {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.remove('hidden');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => t.classList.add('hidden'), 2400);
+  };
+
+  function mmPx(mm) { return Math.round((mm / MM) * DPI); }
+
+  function device() {
+    return DEVICES.find(d => d.id === $('deviceSelect').value) || DEVICES[0];
+  }
+
+  function fillDevices() {
+    $('deviceSelect').innerHTML = DEVICES.map(d =>
+      `<option value="${d.id}">${d.name}（${d.w} × ${d.h} mm）</option>`
+    ).join('');
+  }
+
+  function loadImg(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => resolve({ img, url, name: file.name || 'ref.png' });
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
+  async function addFiles(fileList) {
+    const files = [...fileList].filter(f => f.type.startsWith('image/'));
+    for (const f of files) {
+      try {
+        const { img, url, name } = await loadImg(f);
+        state.refs.push({ id: crypto.randomUUID(), name, img, url });
+      } catch (_) { /* skip */ }
+    }
+    renderRefs();
+    updateGenBtn();
+    if (files.length) toast(`已放入 ${files.length} 張對手圖`);
+  }
+
+  function renderRefs() {
+    $('refCount').textContent = `${state.refs.length} 張`;
+    const grid = $('refGrid');
+    if (!state.refs.length) {
+      grid.innerHTML = '';
+      return;
+    }
+    grid.innerHTML = state.refs.map(r => `
+      <div class="relative group">
+        <img class="thumb border border-slate-800" src="${r.url}" alt="${r.name}">
+        <button data-del="${r.id}" class="absolute top-1 right-1 hidden group-hover:block bg-black/70 text-[10px] px-1.5 py-0.5 rounded-md">刪</button>
+        <div class="text-[9px] text-slate-500 truncate mt-1">${r.name}</div>
+      </div>
+    `).join('');
+    grid.querySelectorAll('[data-del]').forEach(btn => {
+      btn.onclick = () => {
+        const id = btn.getAttribute('data-del');
+        const item = state.refs.find(x => x.id === id);
+        if (item) URL.revokeObjectURL(item.url);
+        state.refs = state.refs.filter(x => x.id !== id);
+        renderRefs();
+        updateGenBtn();
+      };
+    });
+  }
+
+  function updateGenBtn() {
+    $('btnGenerate').disabled = state.refs.length === 0;
+    $('genStatus').textContent = state.refs.length
+      ? `準備就緒：將為 ${state.refs.length} 張參考圖各生成 1 份打印稿`
+      : '先放入至少一張對手圖';
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+
+  function punchCam(ctx, d, bleed) {
+    const c = d.cam;
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    if (c.type === 'c') {
+      ctx.beginPath();
+      ctx.arc(bleed + mmPx(c.x), bleed + mmPx(c.y), mmPx(c.r), 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      roundRect(ctx, bleed + mmPx(c.x), bleed + mmPx(c.y), mmPx(c.w), mmPx(c.h), mmPx(c.rr));
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function strokeCut(ctx, d, bleed) {
+    ctx.save();
+    ctx.strokeStyle = '#ff007f';
+    ctx.lineWidth = Math.max(1, mmPx(0.25));
+    roundRect(ctx, bleed, bleed, mmPx(d.w), mmPx(d.h), mmPx(d.r));
+    ctx.stroke();
+    const c = d.cam;
+    ctx.beginPath();
+    if (c.type === 'c') {
+      ctx.arc(bleed + mmPx(c.x), bleed + mmPx(c.y), mmPx(c.r), 0, Math.PI * 2);
+    } else {
+      roundRect(ctx, bleed + mmPx(c.x), bleed + mmPx(c.y), mmPx(c.w), mmPx(c.h), mmPx(c.rr));
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /** Cover-draw image into rect (center crop). */
+  function drawCover(ctx, img, x, y, w, h) {
+    const iw = img.width, ih = img.height;
+    const scale = Math.max(w / iw, h / ih);
+    const dw = iw * scale, dh = ih * scale;
+    ctx.drawImage(img, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+  }
+
+  /**
+   * Smart extract: take a central portrait crop from the competitor render
+   * (assumes product is centered), place on print sheet with die-cut preview.
+   * No API required — beginner-friendly default.
+   */
+  function smartPrintFromRef(img, d, bleedMm) {
+    const bleed = mmPx(bleedMm);
+    const canvas = document.createElement('canvas');
+    canvas.width = mmPx(d.w) + bleed * 2;
+    canvas.height = mmPx(d.h) + bleed * 2;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Prefer center of reference (product body usually centered in marketing renders)
+    const src = document.createElement('canvas');
+    const sw = img.width, sh = img.height;
+    // If reference is landscape, take a portrait window from center
+    let cw, ch, cx, cy;
+    const targetRatio = d.w / d.h;
+    if (sw / sh > targetRatio) {
+      ch = sh * 0.92;
+      cw = ch * targetRatio;
+    } else {
+      cw = sw * 0.92;
+      ch = cw / targetRatio;
+    }
+    cx = (sw - cw) / 2;
+    cy = (sh - ch) / 2;
+    src.width = Math.max(1, Math.round(cw));
+    src.height = Math.max(1, Math.round(ch));
+    src.getContext('2d').drawImage(img, cx, cy, cw, ch, 0, 0, src.width, src.height);
+
+    drawCover(ctx, src, 0, 0, canvas.width, canvas.height);
+    punchCam(ctx, d, bleed);
+    strokeCut(ctx, d, bleed);
+
+    // Small caption for factory ops
+    ctx.fillStyle = 'rgba(15,23,42,0.55)';
+    ctx.font = `${Math.max(10, Math.round(canvas.width / 55))}px JetBrains Mono, monospace`;
+    ctx.fillText(`${d.name} · AI Print Studio`, bleed + 6, canvas.height - Math.max(8, bleed / 2));
+
+    return canvas;
+  }
+
+  /** Optional HF text-to-image / img2img style regeneration via Inference API. */
+  async function aiPrintFromRef(img, d, bleedMm, token) {
+    // Build a small JPEG of the reference for the request
+    const thumb = document.createElement('canvas');
+    const maxSide = 768;
+    const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+    thumb.width = Math.round(img.width * scale);
+    thumb.height = Math.round(img.height * scale);
+    thumb.getContext('2d').drawImage(img, 0, 0, thumb.width, thumb.height);
+    const blob = await new Promise(res => thumb.toBlob(res, 'image/jpeg', 0.9));
+
+    const prompt = `Flat orthographic iPad back skin vinyl print artwork, portrait orientation ${d.w}x${d.h}mm aspect, full-bleed seamless design inspired by the reference product photo, no device bezel, no hands, no mockup, no perspective, print-ready graphic, camera cutout area near top left kept simple`;
+
+    // Prefer FLUX image edit / img2img compatible endpoint via HF router
+    const endpoint = 'https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-Kontext-dev';
+    const form = new FormData();
+    // Many HF image models accept JSON; Kontext may want multipart — try JSON base64 first via alternative
+    const b64 = await blobToBase64(blob);
+
+    const res = await fetch('https://router.huggingface.co/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'black-forest-labs/FLUX.1-Kontext-dev',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${b64}` } }
+            ]
+          }
+        ]
+      })
+    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(`AI 失敗 (${res.status})：${errText.slice(0, 180) || '請檢查 Token 或改用智能提取'}`);
+    }
+
+    // Response may be image bytes or JSON with URL — handle common cases
+    const ctype = res.headers.get('content-type') || '';
+    let outImg;
+    if (ctype.includes('application/json')) {
+      const data = await res.json();
+      const url =
+        data?.choices?.[0]?.message?.images?.[0]?.image_url?.url ||
+        data?.choices?.[0]?.message?.content?.find?.(c => c.type === 'image_url')?.image_url?.url ||
+        data?.images?.[0]?.url ||
+        null;
+      // Sometimes models return markdown image
+      const content = data?.choices?.[0]?.message?.content;
+      let mdUrl = null;
+      if (typeof content === 'string') {
+        const m = content.match(/data:image\/[a-zA-Z]+;base64,[A-Za-z0-9+/=]+/);
+        if (m) mdUrl = m[0];
+      }
+      const finalUrl = url || mdUrl;
+      if (!finalUrl) throw new Error('AI 有回應但搵唔到圖片，請改用智能提取');
+      outImg = await loadUrlImage(finalUrl);
+    } else {
+      const outBlob = await res.blob();
+      outImg = await loadUrlImage(URL.createObjectURL(outBlob));
+    }
+
+    // Compose AI image onto print sheet
+    const bleed = mmPx(bleedMm);
+    const canvas = document.createElement('canvas');
+    canvas.width = mmPx(d.w) + bleed * 2;
+    canvas.height = mmPx(d.h) + bleed * 2;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawCover(ctx, outImg, 0, 0, canvas.width, canvas.height);
+    punchCam(ctx, d, bleed);
+    strokeCut(ctx, d, bleed);
+    return canvas;
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(',')[1] || '');
+      r.onerror = reject;
+      r.readAsDataURL(blob);
+    });
+  }
+
+  function loadUrlImage(url) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
+  function renderOuts() {
+    const grid = $('outGrid');
+    $('btnDownloadAll').disabled = state.outs.length === 0;
+    if (!state.outs.length) {
+      grid.innerHTML = `<div id="outEmpty" class="col-span-full text-center text-slate-500 text-xs py-10 border border-dashed border-slate-800 rounded-2xl">未有結果 — 完成上面兩步就會喺度顯示</div>`;
+      return;
+    }
+    grid.innerHTML = state.outs.map(o => `
+      <div class="rounded-2xl border border-slate-800 bg-slate-950/50 p-3 space-y-2">
+        <img class="print-thumb border border-slate-800" src="${o.url}" alt="${o.name}">
+        <div class="flex items-center justify-between gap-2">
+          <div class="text-[11px] text-slate-400 truncate">${o.name}</div>
+          <a download="${o.name}" href="${o.url}" class="px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-teal-600 hover:bg-teal-500 text-white shrink-0">下載</a>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function generateAll() {
+    if (!state.refs.length) return;
+    const d = device();
+    const bleed = Number($('bleedMm').value) || 0;
+    const mode = $('genMode').value;
+    const token = localStorage.getItem('pn_hf_token') || '';
+
+    if (mode === 'ai' && !token) {
+      toast('未設定 HF Token — 請撳「AI 設定」，或改用智能提取');
+      $('settingsModal').classList.remove('hidden');
+      return;
+    }
+
+    $('btnGenerate').disabled = true;
+    state.outs.forEach(o => URL.revokeObjectURL(o.url));
+    state.outs = [];
+    renderOuts();
+
+    for (let i = 0; i < state.refs.length; i++) {
+      const ref = state.refs[i];
+      $('genStatus').textContent = `生成中… ${i + 1} / ${state.refs.length}「${ref.name}」`;
+      try {
+        let canvas;
+        if (mode === 'ai') {
+          canvas = await aiPrintFromRef(ref.img, d, bleed, token);
+        } else {
+          canvas = smartPrintFromRef(ref.img, d, bleed);
+        }
+        const url = canvas.toDataURL('image/png');
+        const base = ref.name.replace(/\.[^.]+$/, '') || `ref-${i + 1}`;
+        state.outs.push({
+          id: crypto.randomUUID(),
+          name: `print-${d.id}-${base}.png`,
+          canvas,
+          url
+        });
+        renderOuts();
+      } catch (err) {
+        console.error(err);
+        toast(String(err.message || err));
+        // Fallback to smart if AI fails mid-batch
+        if (mode === 'ai') {
+          const canvas = smartPrintFromRef(ref.img, d, bleed);
+          const url = canvas.toDataURL('image/png');
+          const base = ref.name.replace(/\.[^.]+$/, '') || `ref-${i + 1}`;
+          state.outs.push({
+            id: crypto.randomUUID(),
+            name: `print-${d.id}-${base}-smart.png`,
+            canvas,
+            url
+          });
+          renderOuts();
+        }
+      }
+    }
+
+    $('genStatus').textContent = `完成：已生成 ${state.outs.length} 份打印稿`;
+    $('btnGenerate').disabled = false;
+    toast('打印圖已生成');
+  }
+
+  // Drag & drop
+  const zone = $('dropZone');
+  ['dragenter', 'dragover'].forEach(ev => zone.addEventListener(ev, e => {
+    e.preventDefault(); zone.classList.add('drag');
+  }));
+  ['dragleave', 'drop'].forEach(ev => zone.addEventListener(ev, e => {
+    e.preventDefault(); zone.classList.remove('drag');
+  }));
+  zone.addEventListener('drop', e => {
+    const items = e.dataTransfer?.files;
+    if (items?.length) addFiles(items);
+  });
+  $('fileInput').addEventListener('change', e => {
+    if (e.target.files?.length) addFiles(e.target.files);
+    e.target.value = '';
+  });
+  $('fileInputMulti').addEventListener('change', e => {
+    if (e.target.files?.length) addFiles(e.target.files);
+    e.target.value = '';
+  });
+
+  $('btnClearRefs').onclick = () => {
+    state.refs.forEach(r => URL.revokeObjectURL(r.url));
+    state.refs = [];
+    renderRefs();
+    updateGenBtn();
+  };
+
+  $('btnLoadDemo').onclick = async () => {
+    try {
+      const res = await fetch('./references/competitor-demo.png');
+      if (!res.ok) throw new Error('搵唔到示範圖');
+      const blob = await res.blob();
+      const file = new File([blob], 'competitor-demo.png', { type: 'image/png' });
+      await addFiles([file]);
+    } catch (err) {
+      toast(String(err.message || err));
+    }
+  };
+
+  $('btnGenerate').onclick = generateAll;
+
+  $('btnDownloadAll').onclick = () => {
+    state.outs.forEach((o, i) => {
+      setTimeout(() => {
+        const a = document.createElement('a');
+        a.href = o.url;
+        a.download = o.name;
+        a.click();
+      }, i * 200);
+    });
+  };
+
+  // Settings
+  $('btnSettings').onclick = () => {
+    $('hfToken').value = localStorage.getItem('pn_hf_token') || '';
+    $('settingsModal').classList.remove('hidden');
+  };
+  $('btnCloseSettings').onclick = () => $('settingsModal').classList.add('hidden');
+  $('btnSaveSettings').onclick = () => {
+    const v = $('hfToken').value.trim();
+    if (v) localStorage.setItem('pn_hf_token', v);
+    else localStorage.removeItem('pn_hf_token');
+    $('settingsModal').classList.add('hidden');
+    toast('已儲存 AI 設定');
+  };
+  $('settingsModal').addEventListener('click', e => {
+    if (e.target === $('settingsModal')) $('settingsModal').classList.add('hidden');
+  });
+
+  fillDevices();
+  updateGenBtn();
+})();
+</script>
+</body>
+</html>
