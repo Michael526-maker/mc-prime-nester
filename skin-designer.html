@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrimeNester Skin Designer — iPad 外殼貼紙雙向設計器</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+    :root {
+      --ink: #0b1220;
+      --panel: #111a2b;
+      --line: #1e2a3f;
+      --accent: #2dd4bf;
+      --accent-2: #38bdf8;
+      --warn: #f59e0b;
+      --cut: #ff007f;
+    }
+    body {
+      font-family: "DM Sans", "SF Pro Text", sans-serif;
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(45, 212, 191, 0.12), transparent 55%),
+        radial-gradient(900px 500px at 90% 0%, rgba(56, 189, 248, 0.10), transparent 50%),
+        linear-gradient(180deg, #071018 0%, #0b1220 40%, #0a1018 100%);
+      -webkit-font-smoothing: antialiased;
+    }
+    .mono { font-family: "JetBrains Mono", "SF Mono", monospace; }
+    .ios-blur { backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-thumb { background: rgba(148,163,184,.28); border-radius: 9999px; }
+    .stage {
+      background:
+        linear-gradient(rgba(30,42,63,.55) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(30,42,63,.55) 1px, transparent 1px);
+      background-size: 24px 24px;
+      background-color: #070d16;
+    }
+    .handle {
+      width: 14px; height: 14px; border-radius: 9999px;
+      background: #fff; border: 2px solid var(--accent);
+      box-shadow: 0 0 0 3px rgba(45,212,191,.25);
+      cursor: grab; position: absolute; transform: translate(-50%, -50%);
+      z-index: 20;
+    }
+    .handle:active { cursor: grabbing; }
+    .mode-active {
+      background: linear-gradient(135deg, rgba(45,212,191,.25), rgba(56,189,248,.18));
+      border-color: rgba(45,212,191,.55);
+      color: #ecfeff;
+    }
+    canvas { image-rendering: auto; }
+  </style>
+</head>
+<body class="text-slate-100 min-h-screen h-screen overflow-hidden flex flex-col select-none antialiased">
+
+  <header class="ios-blur bg-slate-950/75 border-b border-slate-800/80 px-4 py-2.5 flex items-center justify-between shrink-0 z-30">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="w-9 h-9 rounded-2xl bg-gradient-to-br from-teal-400 to-sky-500 flex items-center justify-center shadow-lg shadow-teal-500/20 font-bold text-slate-950">PN</div>
+      <div class="min-w-0">
+        <div class="flex items-center gap-2 flex-wrap">
+          <h1 class="font-bold text-sm tracking-tight">PrimeNester Skin Designer</h1>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-teal-500/15 text-teal-300 border border-teal-500/30">雙向 · Bidirectional</span>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-sky-500/15 text-sky-300 border border-sky-500/30">iPad 外殼貼紙</span>
+        </div>
+        <p class="text-[11px] text-slate-400 truncate">渲染圖 ↔ 打印檔 · 透視校正 · 刀線導出 · 可接拼版系統</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 shrink-0">
+      <a href="./index.html" class="px-3 py-2 rounded-xl text-xs font-medium bg-slate-900 border border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800 transition">← 返回拼版 Studio</a>
+      <button id="btnExportPrintPng" class="px-3 py-2 rounded-xl text-xs font-semibold bg-teal-600 hover:bg-teal-500 text-white shadow-lg shadow-teal-600/25 transition">導出打印 PNG</button>
+      <button id="btnExportPrintPdf" class="px-3 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/25 transition">導出打印 PDF</button>
+      <button id="btnExportMockup" class="px-3 py-2 rounded-xl text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white shadow-lg shadow-sky-600/25 transition">導出渲染預覽</button>
+    </div>
+  </header>
+
+  <div class="flex-1 flex overflow-hidden">
+    <!-- Left controls -->
+    <aside class="w-[300px] max-w-[42vw] shrink-0 border-r border-slate-800/80 bg-slate-950/55 ios-blur overflow-y-auto p-3.5 space-y-3.5">
+      <section class="rounded-2xl border border-slate-800 bg-slate-900/70 p-3.5 space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-bold tracking-tight">工作方向</h2>
+          <span class="text-[10px] text-slate-500 uppercase font-semibold">Direction</span>
+        </div>
+        <div class="grid grid-cols-1 gap-2">
+          <button id="modePrintToRender" class="mode-active text-left rounded-xl border px-3 py-2.5 transition">
+            <div class="text-xs font-bold">① 打印圖案 → 渲染圖</div>
+            <div class="text-[10px] text-slate-400 mt-0.5">上傳平面圖稿／相片，即時貼上 iPad 外殼預覽</div>
+          </button>
+          <button id="modeRenderToPrint" class="text-left rounded-xl border border-slate-700 bg-slate-950/50 px-3 py-2.5 text-slate-300 hover:border-slate-500 transition">
+            <div class="text-xs font-bold">② 渲染圖 → 打印檔</div>
+            <div class="text-[10px] text-slate-400 mt-0.5">上傳產品渲染圖，校正四角後展開成可打印平面檔</div>
+          </button>
+        </div>
+      </section>
+
+      <section class="rounded-2xl border border-slate-800 bg-slate-900/70 p-3.5 space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-bold tracking-tight">機型模板</h2>
+          <span class="text-[10px] text-slate-500 uppercase font-semibold">Device</span>
+        </div>
+        <select id="deviceSelect" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none focus:border-teal-500"></select>
+        <div class="grid grid-cols-2 gap-2 text-[11px]">
+          <div class="rounded-xl bg-slate-950/80 border border-slate-800 p-2">
+            <div class="text-slate-500 text-[10px]">打印寬 W</div>
+            <div id="lblPrintW" class="mono font-bold text-teal-300">—</div>
+          </div>
+          <div class="rounded-xl bg-slate-950/80 border border-slate-800 p-2">
+            <div class="text-slate-500 text-[10px]">打印高 H</div>
+            <div id="lblPrintH" class="mono font-bold text-teal-300">—</div>
+          </div>
+        </div>
+        <label class="flex items-center justify-between text-[11px] py-1">
+          <span class="text-slate-300">出血 Bleed (mm)</span>
+          <input id="bleedMm" type="number" min="0" max="10" step="0.5" value="2" class="w-16 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-center mono text-xs">
+        </label>
+        <label class="flex items-center justify-between text-[11px] py-1">
+          <span class="text-slate-300">顯示刀線預覽</span>
+          <input id="showCut" type="checkbox" checked class="w-4 h-4 rounded">
+        </label>
+        <label class="flex items-center justify-between text-[11px] py-1">
+          <span class="text-slate-300">相機／開孔挖空</span>
+          <input id="showCutouts" type="checkbox" checked class="w-4 h-4 rounded">
+        </label>
+      </section>
+
+      <section class="rounded-2xl border border-slate-800 bg-slate-900/70 p-3.5 space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-xs font-bold tracking-tight">素材上傳</h2>
+          <span class="text-[10px] text-slate-500 uppercase font-semibold">Assets</span>
+        </div>
+        <label class="block rounded-xl border border-dashed border-teal-500/40 bg-teal-500/5 hover:bg-teal-500/10 p-3 cursor-pointer transition">
+          <div class="text-xs font-semibold text-teal-300">上傳打印圖案／相片</div>
+          <div class="text-[10px] text-slate-400 mt-0.5">PNG / JPG / WEBP · 用於方向 ①</div>
+          <input id="fileArtwork" type="file" accept="image/*" class="hidden">
+        </label>
+        <label class="block rounded-xl border border-dashed border-sky-500/40 bg-sky-500/5 hover:bg-sky-500/10 p-3 cursor-pointer transition">
+          <div class="text-xs font-semibold text-sky-300">上傳產品渲染圖</div>
+          <div class="text-[10px] text-slate-400 mt-0.5">你現有的 iPad 外殼渲染 · 用於方向 ② 或當底圖</div>
+          <input id="fileRender" type="file" accept="image/*" class="hidden">
+        </label>
+        <div class="flex gap-2">
+          <button id="btnSampleArt" class="flex-1 px-2 py-2 rounded-xl text-[11px] font-semibold bg-slate-950 border border-slate-700 hover:bg-slate-800 transition">載入示範圖案</button>
+          <button id="btnResetQuad" class="flex-1 px-2 py-2 rounded-xl text-[11px] font-semibold bg-slate-950 border border-slate-700 hover:bg-slate-800 transition">重設四角</button>
+        </div>
+      </section>
+
+      <section class="rounded-2xl border border-slate-800 bg-slate-900/70 p-3.5 space-y-2">
+        <h2 class="text-xs font-bold tracking-tight">透視校正（四角）</h2>
+        <p class="text-[10px] text-slate-400 leading-relaxed">拖曳右側渲染圖上的四個控制點，對齊外殼貼紙區域。校正後兩個方向共用同一張 UV 對應表。</p>
+        <div id="quadReadout" class="mono text-[10px] text-slate-400 bg-slate-950/70 border border-slate-800 rounded-xl p-2 leading-5"></div>
+        <label class="flex items-center justify-between text-[11px] pt-1">
+          <span class="text-slate-300">網格細分（品質）</span>
+          <select id="meshDiv" class="bg-slate-950 border border-slate-700 rounded-lg px-2 py-1 text-xs">
+            <option value="12">12 × 12</option>
+            <option value="20" selected>20 × 20</option>
+            <option value="32">32 × 32</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-3.5 space-y-1.5">
+        <h2 class="text-xs font-bold text-amber-300 tracking-tight">使用建議</h2>
+        <ul class="text-[10px] text-slate-400 space-y-1 leading-relaxed list-disc pl-3.5">
+          <li>方向 ①：把平面設計稿即時變成產品渲染預覽，給客戶確認。</li>
+          <li>方向 ②：只有渲染圖、沒有打印原稿時，校正四角後展開成平面打印檔。</li>
+          <li>導出的打印 PNG／PDF 可再丟回拼版 Studio 做 UV 混拼。</li>
+        </ul>
+      </section>
+    </aside>
+
+    <!-- Dual stage -->
+    <main class="flex-1 grid grid-cols-1 xl:grid-cols-2 min-w-0 overflow-hidden">
+      <section class="border-b xl:border-b-0 xl:border-r border-slate-800/80 flex flex-col min-h-0">
+        <div class="h-11 px-3 flex items-center justify-between border-b border-slate-800/80 bg-slate-950/40 shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-teal-400"></span>
+            <span class="text-xs font-bold">平面打印稿 Flat Print</span>
+            <span id="printStatus" class="text-[10px] text-slate-500">等待素材</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button id="btnFitPrint" class="px-2 py-1 rounded-lg text-[10px] bg-slate-900 border border-slate-700 hover:bg-slate-800">適配</button>
+            <button id="btnClearArt" class="px-2 py-1 rounded-lg text-[10px] bg-slate-900 border border-slate-700 hover:bg-slate-800">清空圖案</button>
+          </div>
+        </div>
+        <div id="printStage" class="stage relative flex-1 overflow-hidden flex items-center justify-center">
+          <canvas id="printCanvas" class="max-w-full max-h-full shadow-2xl shadow-black/40"></canvas>
+        </div>
+      </section>
+
+      <section class="flex flex-col min-h-0">
+        <div class="h-11 px-3 flex items-center justify-between border-b border-slate-800/80 bg-slate-950/40 shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+            <span class="text-xs font-bold">產品渲染 Mockup Render</span>
+            <span id="renderStatus" class="text-[10px] text-slate-500">內建空白機身</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button id="btnFitRender" class="px-2 py-1 rounded-lg text-[10px] bg-slate-900 border border-slate-700 hover:bg-slate-800">適配</button>
+            <label class="px-2 py-1 rounded-lg text-[10px] bg-slate-900 border border-slate-700 hover:bg-slate-800 cursor-pointer">
+              鎖定拖點
+              <input id="lockHandles" type="checkbox" class="align-middle ml-1">
+            </label>
+          </div>
+        </div>
+        <div id="renderStage" class="stage relative flex-1 overflow-hidden flex items-center justify-center">
+          <div id="renderWrap" class="relative">
+            <canvas id="renderCanvas" class="max-w-full max-h-full shadow-2xl shadow-black/40"></canvas>
+            <div id="handleTL" class="handle" data-corner="0" title="左上 TL"></div>
+            <div id="handleTR" class="handle" data-corner="1" title="右上 TR"></div>
+            <div id="handleBR" class="handle" data-corner="2" title="右下 BR"></div>
+            <div id="handleBL" class="handle" data-corner="3" title="左下 BL"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 hidden px-4 py-2 rounded-xl bg-slate-100 text-slate-900 text-xs font-semibold shadow-xl"></div>
+
+<script>
+(() => {
+  const DPI = 150; // print working resolution
+  const MM_PER_IN = 25.4;
+
+  /** Device templates: print size in mm, rounded body, camera cutouts in print space (mm from top-left of trim). */
+  const DEVICES = [
+    {
+      id: 'ipad-pro-13-m4',
+      name: 'iPad Pro 13" (M4) · 背面貼紙',
+      printWmm: 281.6,
+      printHmm: 215.5,
+      cornerRmm: 18,
+      // Camera island approx (landscape, camera at top-left when viewing back)
+      cutouts: [
+        { type: 'roundRect', x: 10, y: 10, w: 28, h: 28, r: 7 }
+      ],
+      // Default skin quad on procedural mockup (normalized 0..1 over canvas)
+      defaultQuad: [
+        { x: 0.18, y: 0.14 },
+        { x: 0.82, y: 0.14 },
+        { x: 0.82, y: 0.86 },
+        { x: 0.18, y: 0.86 }
+      ]
+    },
+    {
+      id: 'ipad-pro-11-m4',
+      name: 'iPad Pro 11" (M4) · 背面貼紙',
+      printWmm: 249.7,
+      printHmm: 177.5,
+      cornerRmm: 16,
+      cutouts: [
+        { type: 'roundRect', x: 9, y: 9, w: 26, h: 26, r: 6.5 }
+      ],
+      defaultQuad: [
+        { x: 0.20, y: 0.15 },
+        { x: 0.80, y: 0.15 },
+        { x: 0.80, y: 0.85 },
+        { x: 0.20, y: 0.85 }
+      ]
+    },
+    {
+      id: 'ipad-air-13',
+      name: 'iPad Air 13" · 背面貼紙',
+      printWmm: 280.6,
+      printHmm: 214.9,
+      cornerRmm: 18,
+      cutouts: [
+        { type: 'circle', x: 18, y: 18, r: 6.5 }
+      ],
+      defaultQuad: [
+        { x: 0.18, y: 0.14 },
+        { x: 0.82, y: 0.14 },
+        { x: 0.82, y: 0.86 },
+        { x: 0.18, y: 0.86 }
+      ]
+    },
+    {
+      id: 'ipad-air-11',
+      name: 'iPad Air 11" · 背面貼紙',
+      printWmm: 247.6,
+      printHmm: 178.5,
+      cornerRmm: 16,
+      cutouts: [
+        { type: 'circle', x: 16, y: 16, r: 6 }
+      ],
+      defaultQuad: [
+        { x: 0.20, y: 0.15 },
+        { x: 0.80, y: 0.15 },
+        { x: 0.80, y: 0.85 },
+        { x: 0.20, y: 0.85 }
+      ]
+    },
+    {
+      id: 'ipad-mini-6',
+      name: 'iPad mini (A17 Pro) · 背面貼紙',
+      printWmm: 195.4,
+      printHmm: 134.8,
+      cornerRmm: 14,
+      cutouts: [
+        { type: 'circle', x: 14, y: 14, r: 5.5 }
+      ],
+      defaultQuad: [
+        { x: 0.22, y: 0.16 },
+        { x: 0.78, y: 0.16 },
+        { x: 0.78, y: 0.84 },
+        { x: 0.22, y: 0.84 }
+      ]
+    }
+  ];
+
+  const state = {
+    mode: 'printToRender', // or renderToPrint
+    deviceId: DEVICES[0].id,
+    bleedMm: 2,
+    showCut: true,
+    showCutouts: true,
+    meshDiv: 20,
+    artwork: null,      // HTMLImageElement | HTMLCanvasElement
+    renderBg: null,     // uploaded product render
+    // Quad in canvas pixel coords of renderCanvas
+    quad: null,
+    printPx: { w: 0, h: 0 },
+    renderPx: { w: 900, h: 700 },
+    dirty: true,
+    dragging: null
+  };
+
+  const el = {
+    deviceSelect: document.getElementById('deviceSelect'),
+    lblPrintW: document.getElementById('lblPrintW'),
+    lblPrintH: document.getElementById('lblPrintH'),
+    bleedMm: document.getElementById('bleedMm'),
+    showCut: document.getElementById('showCut'),
+    showCutouts: document.getElementById('showCutouts'),
+    meshDiv: document.getElementById('meshDiv'),
+    fileArtwork: document.getElementById('fileArtwork'),
+    fileRender: document.getElementById('fileRender'),
+    printCanvas: document.getElementById('printCanvas'),
+    renderCanvas: document.getElementById('renderCanvas'),
+    renderWrap: document.getElementById('renderWrap'),
+    printStatus: document.getElementById('printStatus'),
+    renderStatus: document.getElementById('renderStatus'),
+    quadReadout: document.getElementById('quadReadout'),
+    modePrintToRender: document.getElementById('modePrintToRender'),
+    modeRenderToPrint: document.getElementById('modeRenderToPrint'),
+    lockHandles: document.getElementById('lockHandles'),
+    toast: document.getElementById('toast'),
+    handles: [
+      document.getElementById('handleTL'),
+      document.getElementById('handleTR'),
+      document.getElementById('handleBR'),
+      document.getElementById('handleBL')
+    ]
+  };
+
+  const printCtx = el.printCanvas.getContext('2d');
+  const renderCtx = el.renderCanvas.getContext('2d');
+
+  function device() {
+    return DEVICES.find(d => d.id === state.deviceId) || DEVICES[0];
+  }
+
+  function mmToPx(mm) {
+    return Math.round((mm / MM_PER_IN) * DPI);
+  }
+
+  function showToast(msg) {
+    el.toast.textContent = msg;
+    el.toast.classList.remove('hidden');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(() => el.toast.classList.add('hidden'), 2200);
+  }
+
+  function loadImageFromFile(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
+  function fillDeviceSelect() {
+    el.deviceSelect.innerHTML = DEVICES.map(d =>
+      `<option value="${d.id}">${d.name}</option>`
+    ).join('');
+  }
+
+  function updateDeviceLabels() {
+    const d = device();
+    el.lblPrintW.textContent = `${d.printWmm.toFixed(1)} mm`;
+    el.lblPrintH.textContent = `${d.printHmm.toFixed(1)} mm`;
+    resizePrintCanvas();
+    resetQuadToDefault();
+    scheduleDraw();
+  }
+
+  function resizePrintCanvas() {
+    const d = device();
+    const bleed = state.bleedMm;
+    state.printPx.w = mmToPx(d.printWmm + bleed * 2);
+    state.printPx.h = mmToPx(d.printHmm + bleed * 2);
+    el.printCanvas.width = state.printPx.w;
+    el.printCanvas.height = state.printPx.h;
+  }
+
+  function resetQuadToDefault() {
+    const d = device();
+    const { w, h } = state.renderPx;
+    state.quad = d.defaultQuad.map(p => ({ x: p.x * w, y: p.y * h }));
+    syncHandles();
+    updateQuadReadout();
+  }
+
+  function updateQuadReadout() {
+    if (!state.quad) return;
+    const labels = ['TL', 'TR', 'BR', 'BL'];
+    el.quadReadout.innerHTML = state.quad.map((p, i) =>
+      `${labels[i]}: (${p.x.toFixed(0)}, ${p.y.toFixed(0)})`
+    ).join('<br>');
+  }
+
+  function syncHandles() {
+    const canvas = el.renderCanvas;
+    const wrap = el.renderWrap;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = rect.width / canvas.width;
+    const scaleY = rect.height / canvas.height;
+    // Position wrap to match displayed canvas box
+    wrap.style.width = `${rect.width}px`;
+    wrap.style.height = `${rect.height}px`;
+    state.quad.forEach((p, i) => {
+      const h = el.handles[i];
+      h.style.left = `${p.x * scaleX}px`;
+      h.style.top = `${p.y * scaleY}px`;
+    });
+  }
+
+  /** Create a procedural blank iPad-like body as render background when none uploaded. */
+  function drawProceduralDevice(ctx, w, h, d) {
+    ctx.clearRect(0, 0, w, h);
+    const g = ctx.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0, '#1a2333');
+    g.addColorStop(1, '#0d1420');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+
+    const q = state.quad;
+    // Soft shadow under device
+    ctx.save();
+    ctx.beginPath();
+    roundedQuadPath(ctx, inflateQuad(q, 8), 28);
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.filter = 'blur(18px)';
+    ctx.fill();
+    ctx.restore();
+
+    // Device chassis
+    ctx.save();
+    ctx.beginPath();
+    roundedQuadPath(ctx, inflateQuad(q, 18), 36);
+    const body = ctx.createLinearGradient(q[0].x, q[0].y, q[2].x, q[2].y);
+    body.addColorStop(0, '#c5ccd6');
+    body.addColorStop(0.45, '#9aa3b0');
+    body.addColorStop(1, '#7d8794');
+    ctx.fillStyle = body;
+    ctx.fill();
+    ctx.restore();
+
+    // Inner back panel (skin area)
+    ctx.save();
+    ctx.beginPath();
+    roundedQuadPath(ctx, q, 22);
+    const back = ctx.createLinearGradient(q[0].x, q[0].y, q[1].x, q[1].y);
+    back.addColorStop(0, '#2a3342');
+    back.addColorStop(1, '#1b2431');
+    ctx.fillStyle = back;
+    ctx.fill();
+    ctx.restore();
+
+    // Camera island hint
+    const cam = bilinear(q, 0.08, 0.08);
+    const cam2 = bilinear(q, 0.22, 0.22);
+    const cw = Math.hypot(cam2.x - cam.x, cam2.y - cam.y);
+    ctx.save();
+    ctx.fillStyle = '#151b24';
+    roundRect(ctx, cam.x, cam.y, cw, cw, cw * 0.22);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.fillStyle = '#0b0f16';
+    ctx.arc(cam.x + cw * 0.5, cam.y + cw * 0.5, cw * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Label
+    ctx.fillStyle = 'rgba(148,163,184,0.55)';
+    ctx.font = '12px JetBrains Mono, monospace';
+    ctx.fillText(d.name.split('·')[0].trim() + ' · blank body', 18, h - 18);
+  }
+
+  function inflateQuad(q, px) {
+    const c = {
+      x: (q[0].x + q[1].x + q[2].x + q[3].x) / 4,
+      y: (q[0].y + q[1].y + q[2].y + q[3].y) / 4
+    };
+    return q.map(p => {
+      const dx = p.x - c.x, dy = p.y - c.y;
+      const len = Math.hypot(dx, dy) || 1;
+      return { x: p.x + (dx / len) * px, y: p.y + (dy / len) * px };
+    });
+  }
+
+  function roundedQuadPath(ctx, q, rApprox) {
+    // Approximate rounded quad with quadratic curves at corners
+    const pts = q;
+    const n = 4;
+    ctx.moveTo(
+      (pts[0].x + pts[1].x) / 2,
+      (pts[0].y + pts[1].y) / 2
+    );
+    for (let i = 0; i < n; i++) {
+      const curr = pts[(i + 1) % n];
+      const next = pts[(i + 2) % n];
+      const midX = (curr.x + next.x) / 2;
+      const midY = (curr.y + next.y) / 2;
+      ctx.quadraticCurveTo(curr.x, curr.y, midX, midY);
+    }
+    ctx.closePath();
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+
+  /** Bilinear map from unit square (u,v) to quad TL,TR,BR,BL */
+  function bilinear(q, u, v) {
+    const [tl, tr, br, bl] = q;
+    const top = { x: tl.x + (tr.x - tl.x) * u, y: tl.y + (tr.y - tl.y) * u };
+    const bot = { x: bl.x + (br.x - bl.x) * u, y: bl.y + (br.y - bl.y) * u };
+    return { x: top.x + (bot.x - top.x) * v, y: top.y + (bot.y - top.y) * v };
+  }
+
+  /** Inverse bilinear: map point to (u,v) in quad. Iterative / closed form for general quads. */
+  function inverseBilinear(q, p) {
+    // Solve using Newton on bilinear residual
+    let u = 0.5, v = 0.5;
+    for (let i = 0; i < 12; i++) {
+      const f = bilinear(q, u, v);
+      const eps = 1e-4;
+      const fu = bilinear(q, u + eps, v);
+      const fv = bilinear(q, u, v + eps);
+      const rx = f.x - p.x, ry = f.y - p.y;
+      const j00 = (fu.x - f.x) / eps, j01 = (fv.x - f.x) / eps;
+      const j10 = (fu.y - f.y) / eps, j11 = (fv.y - f.y) / eps;
+      const det = j00 * j11 - j01 * j10;
+      if (Math.abs(det) < 1e-12) break;
+      u -= (j11 * rx - j01 * ry) / det;
+      v -= (-j10 * rx + j00 * ry) / det;
+      u = Math.min(1, Math.max(0, u));
+      v = Math.min(1, Math.max(0, v));
+    }
+    return { u, v };
+  }
+
+  function drawArtworkCover(ctx, img, w, h) {
+    if (!img) return;
+    const iw = img.width, ih = img.height;
+    const scale = Math.max(w / iw, h / ih);
+    const dw = iw * scale, dh = ih * scale;
+    const dx = (w - dw) / 2, dy = (h - dh) / 2;
+    ctx.drawImage(img, dx, dy, dw, dh);
+  }
+
+  function makeTrimPath(ctx, d, bleedPx, scale) {
+    const x = bleedPx;
+    const y = bleedPx;
+    const w = mmToPx(d.printWmm);
+    const h = mmToPx(d.printHmm);
+    const r = mmToPx(d.cornerRmm);
+    roundRect(ctx, x, y, w, h, r);
+  }
+
+  function punchCutouts(ctx, d, bleedPx) {
+    if (!state.showCutouts) return;
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    for (const c of d.cutouts) {
+      if (c.type === 'circle') {
+        ctx.beginPath();
+        ctx.arc(bleedPx + mmToPx(c.x), bleedPx + mmToPx(c.y), mmToPx(c.r), 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        roundRect(
+          ctx,
+          bleedPx + mmToPx(c.x),
+          bleedPx + mmToPx(c.y),
+          mmToPx(c.w),
+          mmToPx(c.h),
+          mmToPx(c.r)
+        );
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  function strokeCut(ctx, d, bleedPx) {
+    if (!state.showCut) return;
+    ctx.save();
+    ctx.strokeStyle = '#ff007f';
+    ctx.lineWidth = Math.max(1, mmToPx(0.25));
+    ctx.setLineDash([]);
+    makeTrimPath(ctx, d, bleedPx);
+    ctx.stroke();
+    if (state.showCutouts) {
+      for (const c of d.cutouts) {
+        ctx.beginPath();
+        if (c.type === 'circle') {
+          ctx.arc(bleedPx + mmToPx(c.x), bleedPx + mmToPx(c.y), mmToPx(c.r), 0, Math.PI * 2);
+        } else {
+          roundRect(
+            ctx,
+            bleedPx + mmToPx(c.x),
+            bleedPx + mmToPx(c.y),
+            mmToPx(c.w),
+            mmToPx(c.h),
+            mmToPx(c.r)
+          );
+        }
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  /** Warp source (print) onto destination quad on render canvas using triangle mesh. */
+  function warpPrintOntoRender(destCtx, srcCanvas, quad, div) {
+    const sw = srcCanvas.width, sh = srcCanvas.height;
+    for (let yi = 0; yi < div; yi++) {
+      for (let xi = 0; xi < div; xi++) {
+        const u0 = xi / div, v0 = yi / div;
+        const u1 = (xi + 1) / div, v1 = (yi + 1) / div;
+        const s00 = { x: u0 * sw, y: v0 * sh };
+        const s10 = { x: u1 * sw, y: v0 * sh };
+        const s11 = { x: u1 * sw, y: v1 * sh };
+        const s01 = { x: u0 * sw, y: v1 * sh };
+        const d00 = bilinear(quad, u0, v0);
+        const d10 = bilinear(quad, u1, v0);
+        const d11 = bilinear(quad, u1, v1);
+        const d01 = bilinear(quad, u0, v1);
+        drawTexturedTriangle(destCtx, srcCanvas, s00, s10, s11, d00, d10, d11);
+        drawTexturedTriangle(destCtx, srcCanvas, s00, s11, s01, d00, d11, d01);
+      }
+    }
+  }
+
+  function drawTexturedTriangle(ctx, img, s0, s1, s2, d0, d1, d2) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(d0.x, d0.y);
+    ctx.lineTo(d1.x, d1.y);
+    ctx.lineTo(d2.x, d2.y);
+    ctx.closePath();
+    ctx.clip();
+
+    // Affine transform mapping source triangle -> dest triangle
+    const denom = s0.x * (s1.y - s2.y) + s1.x * (s2.y - s0.y) + s2.x * (s0.y - s1.y);
+    if (Math.abs(denom) < 1e-6) { ctx.restore(); return; }
+
+    const m11 = (d0.x * (s1.y - s2.y) + d1.x * (s2.y - s0.y) + d2.x * (s0.y - s1.y)) / denom;
+    const m12 = (d0.x * (s2.x - s1.x) + d1.x * (s0.x - s2.x) + d2.x * (s1.x - s0.x)) / denom;
+    const m13 = (d0.x * (s1.x * s2.y - s2.x * s1.y) + d1.x * (s2.x * s0.y - s0.x * s2.y) + d2.x * (s0.x * s1.y - s1.x * s0.y)) / denom;
+    const m21 = (d0.y * (s1.y - s2.y) + d1.y * (s2.y - s0.y) + d2.y * (s0.y - s1.y)) / denom;
+    const m22 = (d0.y * (s2.x - s1.x) + d1.y * (s0.x - s2.x) + d2.y * (s1.x - s0.x)) / denom;
+    const m23 = (d0.y * (s1.x * s2.y - s2.x * s1.y) + d1.y * (s2.x * s0.y - s0.x * s2.y) + d2.y * (s0.x * s1.y - s1.x * s0.y)) / denom;
+
+    ctx.setTransform(m11, m21, m12, m22, m13, m23);
+    ctx.drawImage(img, 0, 0);
+    ctx.restore();
+  }
+
+  /** Sample render pixels into flat print via inverse bilinear (direction ②). */
+  function unwrapRenderToPrint(printCanvas, renderCanvas, quad) {
+    const pctx = printCanvas.getContext('2d');
+    const rctx = renderCanvas.getContext('2d');
+    const pw = printCanvas.width, ph = printCanvas.height;
+    const rw = renderCanvas.width, rh = renderCanvas.height;
+    const src = rctx.getImageData(0, 0, rw, rh);
+    const out = pctx.createImageData(pw, ph);
+    const data = src.data;
+    const od = out.data;
+
+    // Slight inset so we sample inside the skin, not chassis bevel
+    for (let y = 0; y < ph; y++) {
+      const v = (y + 0.5) / ph;
+      for (let x = 0; x < pw; x++) {
+        const u = (x + 0.5) / pw;
+        const p = bilinear(quad, u, v);
+        const sx = p.x;
+        const sy = p.y;
+        if (sx < 0 || sy < 0 || sx >= rw - 1 || sy >= rh - 1) continue;
+        // Bilinear sample
+        const x0 = Math.floor(sx), y0 = Math.floor(sy);
+        const fx = sx - x0, fy = sy - y0;
+        const i00 = (y0 * rw + x0) * 4;
+        const i10 = (y0 * rw + x0 + 1) * 4;
+        const i01 = ((y0 + 1) * rw + x0) * 4;
+        const i11 = ((y0 + 1) * rw + x0 + 1) * 4;
+        const oi = (y * pw + x) * 4;
+        for (let c = 0; c < 4; c++) {
+          const v00 = data[i00 + c], v10 = data[i10 + c], v01 = data[i01 + c], v11 = data[i11 + c];
+          od[oi + c] = (v00 * (1 - fx) * (1 - fy) + v10 * fx * (1 - fy) + v01 * (1 - fx) * fy + v11 * fx * fy) | 0;
+        }
+      }
+    }
+    pctx.putImageData(out, 0, 0);
+  }
+
+  function buildPrintFlat(options = {}) {
+    const { includeCutStroke = true, forExport = false } = options;
+    const d = device();
+    const bleedPx = mmToPx(state.bleedMm);
+    const canvas = document.createElement('canvas');
+    canvas.width = state.printPx.w;
+    canvas.height = state.printPx.h;
+    const ctx = canvas.getContext('2d');
+
+    // White print substrate
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (state.mode === 'renderToPrint') {
+      if (state.renderBg) {
+        const tmp = document.createElement('canvas');
+        tmp.width = state.renderPx.w;
+        tmp.height = state.renderPx.h;
+        const tctx = tmp.getContext('2d');
+        drawCover(tctx, state.renderBg, tmp.width, tmp.height);
+        unwrapRenderToPrint(canvas, tmp, state.quad);
+      } else {
+        ctx.fillStyle = '#f1f5f9';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#64748b';
+        ctx.font = `${Math.max(16, canvas.width / 32)}px DM Sans, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillText('請上傳產品渲染圖，並拖曳四角對齊貼紙區', canvas.width / 2, canvas.height / 2);
+      }
+    } else if (state.artwork) {
+      drawArtworkCover(ctx, state.artwork, canvas.width, canvas.height);
+    } else {
+      drawPlaceholderPattern(ctx, canvas.width, canvas.height);
+    }
+
+    // Mask to rounded trim expanded by bleed (simple: clip outer rect is full; punch outside rounded? keep rect for print sheet)
+    // Punch camera holes
+    punchCutouts(ctx, d, bleedPx);
+
+    if (includeCutStroke && !forExport) {
+      strokeCut(ctx, d, bleedPx);
+    } else if (includeCutStroke && forExport) {
+      // Magenta cut on separate-looking overlay for PDF/PNG preview exports
+      strokeCut(ctx, d, bleedPx);
+    }
+
+    // Bleed guides (non-export screen only)
+    if (!forExport) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(45,212,191,0.45)';
+      ctx.setLineDash([4, 4]);
+      ctx.lineWidth = 1;
+      makeTrimPath(ctx, d, bleedPx);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    return canvas;
+  }
+
+  function drawCover(ctx, img, w, h) {
+    const iw = img.width, ih = img.height;
+    const scale = Math.max(w / iw, h / ih);
+    const dw = iw * scale, dh = ih * scale;
+    ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+  }
+
+  function drawPlaceholderPattern(ctx, w, h) {
+    const step = 28;
+    for (let y = 0; y < h; y += step) {
+      for (let x = 0; x < w; x += step) {
+        ctx.fillStyle = ((x / step + y / step) % 2 === 0) ? '#e8eef7' : '#d5dee9';
+        ctx.fillRect(x, y, step, step);
+      }
+    }
+    ctx.fillStyle = '#64748b';
+    ctx.font = `${Math.max(18, w / 28)}px DM Sans, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText('上傳打印圖案或載入示範', w / 2, h / 2);
+  }
+
+  function createSampleArtwork() {
+    const d = device();
+    const w = mmToPx(d.printWmm + state.bleedMm * 2);
+    const h = mmToPx(d.printHmm + state.bleedMm * 2);
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    const g = ctx.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0, '#0f766e');
+    g.addColorStop(0.5, '#0369a1');
+    g.addColorStop(1, '#1e3a8a');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+
+    // Diagonal bands
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate(-0.4);
+    for (let i = -10; i < 10; i++) {
+      ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.08)' : 'rgba(45,212,191,0.12)';
+      ctx.fillRect(-w, i * 48, w * 2, 28);
+    }
+    ctx.restore();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.font = `700 ${Math.max(36, w / 14)}px DM Sans, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText('PRIMENESTER', w / 2, h * 0.42);
+    ctx.font = `500 ${Math.max(16, w / 32)}px DM Sans, sans-serif`;
+    ctx.fillStyle = 'rgba(226,232,240,0.9)';
+    ctx.fillText('iPad Skin Sample · MC Motoparts', w / 2, h * 0.52);
+
+    // Corner marks
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.lineWidth = 3;
+    [[40,40],[w-40,40],[w-40,h-40],[40,h-40]].forEach(([x,y], i) => {
+      ctx.beginPath();
+      ctx.arc(x, y, 18, 0, Math.PI * 2);
+      ctx.stroke();
+    });
+    return c;
+  }
+
+  function drawAll() {
+    const d = device();
+    const bleedPx = mmToPx(state.bleedMm);
+
+    // --- Print panel ---
+    const flat = buildPrintFlat({ includeCutStroke: true, forExport: false });
+    printCtx.clearRect(0, 0, el.printCanvas.width, el.printCanvas.height);
+    printCtx.drawImage(flat, 0, 0);
+    el.printStatus.textContent = state.mode === 'renderToPrint'
+      ? (state.renderBg ? '已由渲染圖展開' : '請上傳渲染圖')
+      : (state.artwork ? '打印稿就緒' : '示範／空白底');
+
+    // --- Render panel ---
+    const rw = state.renderPx.w, rh = state.renderPx.h;
+    el.renderCanvas.width = rw;
+    el.renderCanvas.height = rh;
+
+    if (state.renderBg) {
+      renderCtx.fillStyle = '#070d16';
+      renderCtx.fillRect(0, 0, rw, rh);
+      drawCover(renderCtx, state.renderBg, rw, rh);
+      el.renderStatus.textContent = '已載入渲染圖';
+    } else {
+      drawProceduralDevice(renderCtx, rw, rh, d);
+      el.renderStatus.textContent = '內建空白機身';
+    }
+
+    // Warp flat artwork (without cut overlay) onto quad for mockup
+    if (state.mode === 'printToRender') {
+      const warpSrc = buildPrintFlat({ includeCutStroke: false, forExport: true });
+      // Soft clip to quad
+      renderCtx.save();
+      renderCtx.beginPath();
+      roundedQuadPath(renderCtx, state.quad, 18);
+      renderCtx.clip();
+      // Slight darken under skin for contrast when on photo
+      if (state.renderBg) {
+        renderCtx.fillStyle = 'rgba(0,0,0,0.08)';
+        renderCtx.fill();
+      }
+      warpPrintOntoRender(renderCtx, warpSrc, state.quad, state.meshDiv);
+      renderCtx.restore();
+
+      // Outline skin
+      renderCtx.save();
+      renderCtx.strokeStyle = 'rgba(45,212,191,0.65)';
+      renderCtx.lineWidth = 1.5;
+      renderCtx.beginPath();
+      roundedQuadPath(renderCtx, state.quad, 18);
+      renderCtx.stroke();
+      renderCtx.restore();
+    } else {
+      // Direction ②: just show guide quad on render; print panel already unwrapped
+      renderCtx.save();
+      renderCtx.strokeStyle = 'rgba(56,189,248,0.85)';
+      renderCtx.lineWidth = 2;
+      renderCtx.setLineDash([6, 4]);
+      renderCtx.beginPath();
+      roundedQuadPath(renderCtx, state.quad, 18);
+      renderCtx.stroke();
+      renderCtx.restore();
+    }
+
+    // Draw corner markers lightly
+    state.quad.forEach((p, i) => {
+      renderCtx.beginPath();
+      renderCtx.fillStyle = '#fff';
+      renderCtx.strokeStyle = '#2dd4bf';
+      renderCtx.lineWidth = 2;
+      renderCtx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+      renderCtx.fill();
+      renderCtx.stroke();
+    });
+
+    requestAnimationFrame(syncHandles);
+    state.dirty = false;
+  }
+
+  let raf = 0;
+  function scheduleDraw() {
+    state.dirty = true;
+    if (raf) return;
+    raf = requestAnimationFrame(() => {
+      raf = 0;
+      drawAll();
+    });
+  }
+
+  function setMode(mode) {
+    state.mode = mode;
+    const a = mode === 'printToRender';
+    el.modePrintToRender.className = a
+      ? 'mode-active text-left rounded-xl border px-3 py-2.5 transition'
+      : 'text-left rounded-xl border border-slate-700 bg-slate-950/50 px-3 py-2.5 text-slate-300 hover:border-slate-500 transition';
+    el.modeRenderToPrint.className = !a
+      ? 'mode-active text-left rounded-xl border px-3 py-2.5 transition'
+      : 'text-left rounded-xl border border-slate-700 bg-slate-950/50 px-3 py-2.5 text-slate-300 hover:border-slate-500 transition';
+    scheduleDraw();
+  }
+
+  function downloadCanvas(canvas, filename) {
+    const a = document.createElement('a');
+    a.download = filename;
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  }
+
+  function exportPrintPng() {
+    const c = buildPrintFlat({ includeCutStroke: true, forExport: true });
+    const d = device();
+    downloadCanvas(c, `skin-print-${d.id}.png`);
+    showToast('已導出打印 PNG（含洋紅刀線預覽）');
+  }
+
+  function exportMockupPng() {
+    // Redraw clean mockup without handle dots clutter: temporarily
+    downloadCanvas(el.renderCanvas, `skin-mockup-${device().id}.png`);
+    showToast('已導出渲染預覽 PNG');
+  }
+
+  function exportPrintPdf() {
+    const d = device();
+    const bleed = state.bleedMm;
+    const pageW = d.printWmm + bleed * 2;
+    const pageH = d.printHmm + bleed * 2;
+    const c = buildPrintFlat({ includeCutStroke: true, forExport: true });
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({
+      orientation: pageW >= pageH ? 'landscape' : 'portrait',
+      unit: 'mm',
+      format: [pageW, pageH]
+    });
+    const data = c.toDataURL('image/jpeg', 0.95);
+    pdf.addImage(data, 'JPEG', 0, 0, pageW, pageH);
+    pdf.save(`skin-print-${d.id}.pdf`);
+    showToast('已導出 1:1 打印 PDF');
+  }
+
+  // --- Handle dragging ---
+  function clientToCanvas(clientX, clientY) {
+    const rect = el.renderCanvas.getBoundingClientRect();
+    const x = ((clientX - rect.left) / rect.width) * el.renderCanvas.width;
+    const y = ((clientY - rect.top) / rect.height) * el.renderCanvas.height;
+    return { x, y };
+  }
+
+  el.handles.forEach(h => {
+    h.addEventListener('pointerdown', (e) => {
+      if (el.lockHandles.checked) return;
+      e.preventDefault();
+      h.setPointerCapture(e.pointerId);
+      state.dragging = Number(h.dataset.corner);
+    });
+    h.addEventListener('pointermove', (e) => {
+      if (state.dragging === null) return;
+      const p = clientToCanvas(e.clientX, e.clientY);
+      state.quad[state.dragging] = {
+        x: Math.min(el.renderCanvas.width, Math.max(0, p.x)),
+        y: Math.min(el.renderCanvas.height, Math.max(0, p.y))
+      };
+      updateQuadReadout();
+      scheduleDraw();
+    });
+    h.addEventListener('pointerup', () => { state.dragging = null; });
+    h.addEventListener('pointercancel', () => { state.dragging = null; });
+  });
+
+  // Resize observer to keep handles aligned
+  const ro = new ResizeObserver(() => syncHandles());
+  ro.observe(el.renderCanvas);
+
+  // Events
+  el.deviceSelect.addEventListener('change', () => {
+    state.deviceId = el.deviceSelect.value;
+    updateDeviceLabels();
+  });
+  el.bleedMm.addEventListener('change', () => {
+    state.bleedMm = Number(el.bleedMm.value) || 0;
+    resizePrintCanvas();
+    scheduleDraw();
+  });
+  el.showCut.addEventListener('change', () => { state.showCut = el.showCut.checked; scheduleDraw(); });
+  el.showCutouts.addEventListener('change', () => { state.showCutouts = el.showCutouts.checked; scheduleDraw(); });
+  el.meshDiv.addEventListener('change', () => { state.meshDiv = Number(el.meshDiv.value); scheduleDraw(); });
+
+  el.modePrintToRender.addEventListener('click', () => setMode('printToRender'));
+  el.modeRenderToPrint.addEventListener('click', () => setMode('renderToPrint'));
+
+  el.fileArtwork.addEventListener('change', async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    state.artwork = await loadImageFromFile(f);
+    setMode('printToRender');
+    showToast('已載入打印圖案');
+    scheduleDraw();
+  });
+
+  el.fileRender.addEventListener('change', async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    state.renderBg = await loadImageFromFile(f);
+    // Fit render canvas aspect to image
+    const maxW = 1000, maxH = 800;
+    const scale = Math.min(maxW / state.renderBg.width, maxH / state.renderBg.height, 1);
+    state.renderPx.w = Math.round(state.renderBg.width * scale);
+    state.renderPx.h = Math.round(state.renderBg.height * scale);
+    resetQuadToDefault();
+    showToast('已載入產品渲染圖 — 請拖曳四角對齊貼紙區');
+    scheduleDraw();
+  });
+
+  document.getElementById('btnSampleArt').addEventListener('click', () => {
+    state.artwork = createSampleArtwork();
+    setMode('printToRender');
+    showToast('已載入示範圖案');
+    scheduleDraw();
+  });
+  document.getElementById('btnResetQuad').addEventListener('click', () => {
+    resetQuadToDefault();
+    scheduleDraw();
+    showToast('已重設四角');
+  });
+  document.getElementById('btnClearArt').addEventListener('click', () => {
+    state.artwork = null;
+    scheduleDraw();
+  });
+  document.getElementById('btnFitPrint').addEventListener('click', () => scheduleDraw());
+  document.getElementById('btnFitRender').addEventListener('click', () => scheduleDraw());
+  document.getElementById('btnExportPrintPng').addEventListener('click', exportPrintPng);
+  document.getElementById('btnExportPrintPdf').addEventListener('click', exportPrintPdf);
+  document.getElementById('btnExportMockup').addEventListener('click', exportMockupPng);
+
+  // Init
+  fillDeviceSelect();
+  state.artwork = createSampleArtwork();
+  updateDeviceLabels();
+  setMode('printToRender');
+  showToast('Skin Designer 就緒 — 可切換雙向模式');
+})();
+</script>
+</body>
+</html>
